@@ -1,0 +1,458 @@
+<h1>Überblick</h1>
+
+<h2>Was ist das Panel?</h2>
+<p>Das Panel – im System als <b>MDT</b> (Mobile Data Terminal) bezeichnet – ist eine Verwaltungs- und Kommunikationsplattform für eure Organisation. Es läuft komplett im Webbrowser und sieht aus wie ein kleiner Computer-Desktop: oben eine Leiste, unten ein Dock mit allen Apps, dazwischen frei verschiebbare Fenster. Alles, was ihr eintragt, ist für berechtigte Personen <b>sofort live</b> sichtbar – ohne Neuladen.</p>
+<p>Das Panel bündelt unter anderem: Börse (Handel mit externen Partnern), Lager mit Slot-System, Fahrzeugverwaltung, interaktive Karte mit Postleitzahlen, Finanzen und Statistik, Kredite, das Deckel-System für externe Firmen, Chat, Tickets, ein Schwarzes Brett auf dem Desktop sowie die komplette Benutzer-, Rollen- und Rechteverwaltung.</p>
+{{fig:04-desktop|Der Desktop: obere Leiste, Schwarzes Brett, Uhr-Widget und das Dock mit allen Apps}}
+
+<h2>Wer nutzt das Panel?</h2>
+<table>
+<tr><th>Gruppe</th><th>Zugang</th><th>Was sie sehen</th></tr>
+<tr><td><b>Mitglieder</b> (Mitarbeiter)</td><td>Benutzername + Passwort</td><td>Alle Apps, die ihre Rechte erlauben; das Schwarze Brett auf dem Desktop</td></tr>
+<tr><td><b>Externe Partner</b> (Lieferanten, Ankäufer)</td><td>persönlicher Link + Zugangscode</td><td>Nur die ihnen freigeschalteten Partner-Apps: Börse, Chat, Kredit – nie Namen und kein Schwarzes Brett</td></tr>
+<tr><td><b>Externe Firmen</b> (Deckel)</td><td>persönlicher Firmen-Link</td><td>Nur das Firmenportal zur Abrechnung</td></tr>
+<tr><td><b>Exekutive</b></td><td>eigene Subdomain</td><td>Ein Terminal-Minigame – ohne Namen, Logo oder Bezug zum System</td></tr>
+</table>
+
+<h2>Grundprinzipien</h2>
+<ul>
+<li><b>Anonymität:</b> Mitglieder erscheinen überall nur als <b>Personalnummer</b> (z. B. <code>MDT-221</code>). Den echten Namen sieht man nur bei sich selbst, als Superadmin und bei Mitgliedern, die in der Hierarchie <i>unter</i> einem stehen.</li>
+<li><b>Genaue Rechte:</b> Jede Funktion hat ein eigenes Recht (insgesamt 71). Wer etwas nicht darf, sieht den Eintrag meist gar nicht; der Server prüft jede Aktion zusätzlich selbst.</li>
+<li><b>Echtzeit:</b> Änderungen erscheinen bei allen offenen Fenstern sofort. Der grüne Punkt in der Kopfleiste zeigt die Live-Verbindung.</li>
+<li><b>Nachvollziehbarkeit:</b> Jede wichtige Aktion landet im Audit-Log – ebenfalls nur mit Personalnummer.</li>
+<li><b>Nichts geht verloren:</b> Gelöscht wird erst nach Bestätigung; der Superadmin kann alles endgültig löschen.</li>
+</ul>
+
+<h2>Wichtige Begriffe</h2>
+<table>
+<tr><th>Begriff</th><th>Bedeutung</th></tr>
+<tr><td>Superadmin</td><td>Der erste Benutzer. Feste Rolle, nicht veränderbar und nicht vergebbar; hat immer <b>alle</b> Rechte und darf alles löschen.</td></tr>
+<tr><td>Administrator</td><td>Frei vergebbare Rolle mit allen fachlichen Rechten.</td></tr>
+<tr><td>Rang</td><td>Stufe in der Organisation (13 Standard-Ränge von <i>Anwärter</i> bis <i>Leitung</i>). Der Rang bestimmt die Hierarchie – und damit, wessen Namen man sieht.</td></tr>
+<tr><td>Rolle</td><td>Bündel von Rechten. Zu jedem Standard-Rang gibt es eine passende Rolle mit wachsenden Rechten.</td></tr>
+<tr><td>Recht</td><td>Eine einzelne Erlaubnis, z. B. <code>warehouse.stock</code> (Lager buchen).</td></tr>
+<tr><td>Abteilung</td><td>Fachbereich (z. B. Führung, Operativ, Legal, Finance, Logistics).</td></tr>
+<tr><td>Personalnummer</td><td>Eindeutige Kennung eines Mitglieds, z. B. <code>MDT-221</code>. Nur der Superadmin kann sie ändern.</td></tr>
+<tr><td>Externer Zugang</td><td>Zugang für einen Geschäftspartner (Lieferant oder Ankäufer) per Link und Code.</td></tr>
+<tr><td>Slot / Stapel</td><td>Lagereinheiten wie im Server-Inventar: Ein Stapel belegt Slots und fasst eine Höchstmenge.</td></tr>
+</table>
+
+<h1>Erste Schritte</h1>
+
+<h2>Ersteinrichtung</h2>
+<p>Beim allerersten Aufruf zeigt das Panel die Ersteinrichtung. Dort legt ihr den <b>Systemnamen</b> fest und erstellt den <b>Superadmin</b> (Anzeigename, Benutzername, Passwort mit mindestens 8 Zeichen). Das geht nur ein einziges Mal – ein zweites Setup wird abgelehnt.</p>
+{{fig:01-einrichtung|Die Ersteinrichtung beim ersten Start}}
+<p>Automatisch angelegt werden dabei die <b>13 Standard-Ränge</b> samt Beschreibung, je eine <b>Rolle pro Rang</b> mit aufsteigenden Rechten sowie die frei vergebbare Rolle <b>Administrator</b>. Der Superadmin braucht keine Rolle – er darf immer alles.</p>
+<div class="tip"><b>Tipp:</b> Nach der Einrichtung öffnet sich automatisch die Konfiguration. Dort stellt ihr Namen, Farben, Logo und Hintergrund ein (Kapitel 5).</div>
+
+<h2>Registrierung und Anmeldung</h2>
+<p>Bestehende Mitglieder melden sich mit Benutzername und Passwort an. Neue Mitglieder können sich über „Zugang beantragen“ selbst <b>registrieren</b>; ihr Zugang ist danach <i>ausstehend</i>, bis ein Administrator (Recht <code>users.approve</code>) ihn freischaltet. Bis dahin sehen sie nur eine Wartemaske mit der Möglichkeit, den Status zu prüfen.</p>
+{{fig:02-anmeldung|Die Anmeldung}}
+{{fig:03-registrierung|Registrierung neuer Mitglieder – der Zugang wird danach manuell freigeschaltet}}
+<div class="warn"><b>Sicherheit:</b> Zu viele falsche Anmeldeversuche werden automatisch gebremst. Vergebt keine Passwörter weiter und nutzt den Sperrbildschirm, wenn ihr den Platz verlasst.</div>
+
+<h2>Der Desktop im Detail</h2>
+<p>Die Oberfläche besteht aus fünf Bereichen:</p>
+<ul>
+<li><b>Obere Leiste:</b> links das Logo mit dem App-Menü, in der Mitte die Uhr; rechts Live-Status (grüner Punkt), Glocke, Fehler melden, Einstellungen, Bildschirm sperren, euer Konto und Abmelden.</li>
+<li><b>Dock:</b> alle Apps als Symbole. Ein Strich unter dem Symbol zeigt, dass die App läuft; eine gelbe Zahl meldet Offenes (z. B. ungelesene Chatnachrichten, ausstehende Benutzer).</li>
+<li><b>Fenster:</b> verschieben (Titelleiste ziehen), vergrößern (Ränder ziehen), minimieren, maximieren und schließen. Mehrere Apps können gleichzeitig offen sein.</li>
+<li><b>Uhr-Widget</b> unten rechts mit Datum und Systemname.</li>
+<li><b>Schwarzes Brett</b> oben rechts (Abschnitt 3.12).</li>
+</ul>
+<p>Unten rechts steht außerdem die <b>Build-Anzeige</b> (z. B. <i>Build 183f27f</i>): der installierte Programmstand. Ein Klick öffnet die Diagnose mit euren Rechten und dem Knopf „Zwischenspeicher leeren &amp; neu laden“.</p>
+<h3>Das App-Menü</h3>
+<p>Ein Klick auf das Logo oben links öffnet das Startmenü: alle Apps nach Bereichen sortiert (Übersicht, Handel, Einsatz, Finanzen, Kommunikation, Administration), unten euer Name mit Rang, dazu Einstellungen, Sperren und Abmelden.</p>
+{{fig:05-startmenue|Das App-Menü mit allen verfügbaren Apps}}
+
+<h2>Benachrichtigungen</h2>
+<p>Jedes wichtige Ereignis erzeugt eine eigene Benachrichtigung: Statuswechsel bei Geschäften, neue Gegenangebote, Chat-Erwähnungen, Ticket-Antworten, neue Benutzer, dringende Ankündigungen, Update-Hinweise und mehr. Es gibt drei Wege, sie zu sehen:</p>
+<ul>
+<li>die <b>Glocke</b> mit Zähler – die Liste öffnet sich per Klick; ein Klick auf einen Eintrag springt direkt zum Datensatz,</li>
+<li>ein <b>Pop-up</b> oben rechts im Desktop, das nach einigen Sekunden verschwindet,</li>
+<li>ein <b>Ton</b> (jeweils nur in einem Browser-Tab).</li>
+</ul>
+<p>Mit dem kleinen <b>X</b> an jedem Eintrag löscht ihr einzelne Benachrichtigungen, mit „Alle löschen“ die ganze Liste; „Alle gelesen“ setzt nur den Zähler zurück.</p>
+{{fig:06-benachrichtigungen|Die Benachrichtigungsliste mit Löschen-Symbolen}}
+
+<h2>Einstellungen: Ton und Lautstärke</h2>
+<p>Das Zahnrad in der Kopfleiste öffnet die persönlichen Einstellungen dieses Geräts (sie bleiben auch nach Updates erhalten, gelten aber nur für diesen Browser):</p>
+<ul>
+<li>Ton bei neuer Benachrichtigung an/aus,</li>
+<li>Hinweise als Pop-up an/aus,</li>
+<li><b>Lautstärke</b> von 0 % bis 100 % (beim Loslassen hört ihr eine Vorschau),</li>
+<li><b>Benachrichtigungston</b>: Zweiklang (Standard), Glocke, Pop, Dreiklang oder Sanft.</li>
+</ul>
+{{fig:07-einstellungen|Einstellungen: Lautstärke und Tonauswahl}}
+<p>Die gleichen Einstellungen gibt es auch im Partner-Portal für externe Zugänge.</p>
+
+<h2>Konto und Sicherheit</h2>
+<p>Ein Klick auf euren Namen oben rechts öffnet „Konto &amp; Sicherheit“. Dort ladet ihr ein <b>Profilbild</b> hoch (wird quadratisch zugeschnitten; PNG, JPEG oder WebP), ändert euer <b>Passwort</b> und seht eure aktiven <b>Sitzungen</b> – mit einem Klick beendet ihr alle anderen Sitzungen (überall abmelden). Das Bild erscheint in der Kopfleiste, in Listen und im Chat, immer neben der Personalnummer.</p>
+{{fig:08-konto|Konto &amp; Sicherheit}}
+
+<h2>Bildschirm sperren</h2>
+<p>Das Schloss in der Kopfleiste sperrt den Bildschirm sofort; nach Inaktivität passiert das automatisch (Zeit einstellbar unter Konfiguration → Zugang, 0 = aus). Entsperrt wird mit dem Passwort. Der gesperrte Zustand bleibt auch nach einem Neuladen der Seite bestehen.</p>
+{{fig:48-sperre|Der Sperrbildschirm}}
+
+<h2>Fehler melden</h2>
+<p>Der Käfer in der Kopfleiste öffnet das Ticket-Formular: Art (Fehler, Idee, Frage), Titel, Beschreibung und optional ein <b>Screenshot</b> (Datei auswählen oder ein Bild aus der Zwischenablage mit <kbd>Strg</kbd>+<kbd>V</kbd> einfügen). Mehr dazu im Abschnitt „Tickets“.</p>
+{{fig:09-ticket-melden|Ein Ticket mit Screenshot eröffnen}}
+
+<h1>Die Apps</h1>
+<p>Welche Apps im Dock erscheinen, hängt von euren Rechten ab. Dieses Kapitel erklärt jede App; die jeweils nötigen Rechte stehen in der Infobox.</p>
+
+<h2>Dashboard</h2>
+<div class="rights"><b>Recht:</b> für alle aktiven Mitglieder</div>
+<p>Die Startseite mit der aktuellen Lage: Begrüßung, Uhr, Schnellzugriff auf die Apps und – je nach Rechten – Kennzahlen als Widgets (offene Börsen-Geschäfte, Lagerauslastung, Tickets, Fahrzeuge …). Welche Widgets sichtbar sind und in welcher Reihenfolge, stellt der Administrator unter Konfiguration → Dashboard-Widgets ein.</p>
+{{fig:10-dashboard|Das Dashboard}}
+
+<h2>Börse</h2>
+<div class="rights"><b>Rechte:</b> <code>market.view</code> (ansehen), <code>market.deals.manage</code> (Geschäfte bearbeiten, Angebote machen), <code>market.catalog.manage</code> (Katalog), <code>market.wanted.manage</code> (Gesuche), <code>market.delete</code></div>
+<p>Die Börse ist der Handelsplatz zwischen eurer Organisation und externen Partnern – in beide Richtungen:</p>
+<ul>
+<li><b>Katalog:</b> Die Artikel, mit denen gehandelt wird – mit Kategorie, Einheit und internem Richtpreis.</li>
+<li><b>Gesuche („Wir suchen“):</b> Was ihr ankaufen wollt, mit Menge und Preis. Partner melden sich darauf mit einem Gebot.</li>
+<li><b>Angebote von Partnern:</b> Partner stellen Ware ein und sehen sofort euren automatischen <b>Preisvorschlag</b> (nie die Preisspanne dahinter).</li>
+<li><b>Angebote an Partner:</b> Ihr wählt Partner, Lager und Artikel mit Menge und Preis – der Partner sieht das Angebot in seinem Portal.</li>
+<li><b>Geschäfte:</b> Jede Verhandlung ist ein Geschäft mit Nummer <code>MDT-G-…</code>. Preise und Mengen werden abwechselnd verhandelt: annehmen, ablehnen oder Gegenangebot. Wer am Zug ist, ist immer sichtbar.</li>
+</ul>
+{{fig:11-boerse|Die Börse: Geschäfte mit Statusfiltern}}
+{{fig:12-boerse-katalog|Der Katalog}}
+{{fig:13-boerse-gesuche|Gesuche: Was wir ankaufen wollen}}
+<h3>Ablauf eines Geschäfts</h3>
+<ol>
+<li>Eingereicht → ggf. Gegenangebote hin und her → <b>Angenommen</b>.</li>
+<li><b>Übergabe:</b> Ort (aus einer Auswahlliste), Anweisung und Auszahlungsinfo werden festgelegt.</li>
+<li><b>Geliefert / Abgeschlossen:</b> Bei Wareneingang kann die Ware direkt in ein Lager eingebucht werden; bei Verkäufen wird sie bei Annahme <b>automatisch aus dem Lager abgebucht</b>.</li>
+<li>Jedes angenommene Geschäft schreibt einen Eintrag ins Finanz-Journal (Verkauf = erwarteter Eingang, Ankauf = erwartete Ausgabe).</li>
+</ol>
+
+<h2>Karte</h2>
+<div class="rights"><b>Rechte:</b> <code>map.view</code> (ansehen), <code>map.edit</code> (Waypoints setzen/ändern/löschen)</div>
+<p>Die interaktive Karte zeigt Waypoints, Fahrzeuge, Lager und optional die <b>Postleitzahlen</b>. Zoomen mit dem Mausrad, verschieben per Ziehen. Die Statusleiste zeigt Spielkoordinaten und die nächste Postal unter dem Mauszeiger. Im Suchfeld springt „7085“ direkt zur Postleitzahl.</p>
+{{fig:14-karte|Die Karte mit Waypoint-Kategorien und Ebenen (Fahrzeuge, Lager, Postleitzahlen)}}
+<ul>
+<li><b>Waypoint setzen:</b> Knopf „Waypoint setzen“, auf die Karte klicken, Name, Kategorie, Symbol, Farbe, Notizen und Sichtbarkeit („alle“ oder „nur Bearbeiter“) festlegen. Verschieben und Bearbeiten über das Pop-up am Pin.</li>
+<li><b>Ebenen:</b> Fahrzeuge (nur mit Standortrecht) und Lager erscheinen automatisch; über die Knöpfe oben lassen sie sich ein- und ausblenden.</li>
+<li><b>Kartengrundlage:</b> Standard ist die Satellitenkarte mit eingeblendeten Postleitzahlen; unter Konfiguration → Karte lässt sich auf die mitgelieferte <b>Postal-Karte</b> (Bild mit aufgedruckten Nummern) umschalten.</li>
+</ul>
+<div class="tip"><b>Genauigkeit:</b> Die Kalibrierung der Satellitenkarte wurde per Küstenabgleich mit der Postal-Karte berechnet – die Postleitzahlen liegen damit auf den Gebäuden.</div>
+
+<h2>Lager</h2>
+<div class="rights"><b>Rechte:</b> <code>warehouse.view</code>, <code>warehouse.stock</code> (ein-/auslagern), <code>warehouse.manage</code>, <code>warehouse.items</code>, <code>warehouse.prices</code>, <code>warehouse.view_access</code></div>
+<p>Das Lager arbeitet <b>wie das Inventar auf dem Server</b>: Die Kapazität eines Lagers wird in <b>Slots</b> gemessen (z. B. 23 / 60 Slots). Jeder Artikel hat zwei Werte:</p>
+<table>
+<tr><th>Wert</th><th>Bedeutung</th><th>Beispiel</th></tr>
+<tr><td>Slots pro Stapel</td><td>So viele Slots belegt ein Stapel</td><td>1, 2 oder 3</td></tr>
+<tr><td>Max. Menge pro Stapel</td><td>So viele Stück passen in einen Stapel</td><td>5, 2 oder 1</td></tr>
+</table>
+<p>So entstehen die typischen Fälle des Spiels: <b>1 Slot und 5 Stück</b> (z. B. Pulver), <b>2 Slots und 2 Stück</b> (z. B. Weste) oder <b>3 Slots und 1 Stück</b> (z. B. Waffenkiste). Belegt wird nach Stapeln, immer aufgerundet: 6 Stück Pulver sind 2 Stapel = 2 Slots; 5 Westen sind 3 Stapel = 6 Slots. Angefangene Stapel werden zuerst aufgefüllt.</p>
+{{fig:15-lager|Lagerstandorte mit Auslastung in Slots}}
+{{fig:16-lager-uebersicht|Lager-Details: Standort, Postleitzahl, Zugang und Kapazität}}
+{{fig:17-lager-detail|Bestand je Artikel mit Slot-Belegung}}
+<h3>Einlagern, Auslagern, Umlagern</h3>
+<p>Im Reiter „Bestand“ gibt es die Knöpfe <b>Einlagern</b>, <b>Auslagern</b> und <b>Korrigieren</b>; „Umlagern“ verschiebt Ware in ein anderes Lager. Das Formular rechnet live vor, wie viele Stapel und Slots eure Menge belegt, und warnt, wenn der Platz nicht reicht. Jede Buchung erscheint im <b>Verlauf</b> (wer, wann, wie viel, Notiz).</p>
+{{fig:18-lager-einlagern|Einlagern mit Slot-Berechnung}}
+<h3>Artikel und Preise</h3>
+<p>Im Reiter „Artikel &amp; Preise“ pflegt ihr die Artikel mit Kategorie, Einheit, <b>Slots pro Stapel</b>, <b>Max. Menge pro Stapel</b>, optionaler <b>Preisspanne</b> (Mindest-/Höchstpreis) und Zielbestand. Aus Preisspanne und Bestand entsteht der automatische Preisvorschlag für die Börse (Regel einstellbar unter Konfiguration → Lager: nach Bestand, Mindestpreis, Mitte, Höchstpreis).</p>
+{{fig:19-lager-artikel|Artikel &amp; Preise mit Slot-Angabe}}
+{{fig:20-lager-artikel-dialog|Neuer Artikel: Slots pro Stapel und maximale Menge pro Stapel}}
+<h3>Zugriffe</h3>
+<p>Ein Lager kann <b>beschränkt</b> werden; dann sehen es nur Rollen, die ihr zuweist (Stufe <i>Ansehen</i> oder <i>Verwalten</i>). Die Zugangsinfo (z. B. Tor-Code) sieht nur, wer <code>warehouse.view_access</code> hat. Lager mit Koordinaten oder Postleitzahl erscheinen automatisch auf der Karte.</p>
+
+<h2>Fahrzeuge</h2>
+<div class="rights"><b>Rechte:</b> <code>vehicles.view</code>, <code>vehicles.view_location</code>, <code>vehicles.create</code>, <code>vehicles.edit</code>, <code>vehicles.delete</code>, <code>vehicles.assign</code></div>
+<p>Der Fuhrpark mit Name, Kennzeichen, Fahrgestellnummer, Klasse, Farbe, Sitzen, Kraftstoff (Diesel, Benzin, Strom), Tank- bzw. Akkustand, Zustand, Kilometerstand, Hauptuntersuchung, Standort (Text, Stellplatz, Koordinaten), Abteilung, zugewiesenem Mitglied (nur Personalnummer) und Bild. Jedes Fahrzeug bekommt eine Nummer <code>MDT-V-…</code> und einen Änderungsverlauf. Oben filtert ihr nach Zustand und Kraftstoff, „Nur meine“ zeigt eure zugewiesenen Fahrzeuge.</p>
+{{fig:22-fahrzeuge|Der Fuhrpark mit Zustandsfiltern}}
+{{fig:23-fahrzeug-neu|Ein Fahrzeug anlegen}}
+<p>Die Zustände und Fahrzeugklassen sind frei erweiterbar (Administration → Kategorien &amp; Status).</p>
+
+<h2>Finanzen</h2>
+<div class="rights"><b>Rechte:</b> <code>finance.view</code>, <code>finance.manual</code> (manuelle Buchungen), <code>finance.export</code> (CSV), <code>finance.delete</code></div>
+<p>Die Finanz-App besteht aus zwei Reitern:</p>
+<ul>
+<li><b>Überblick:</b> Saldo, verbuchte und erwartete Einnahmen/Ausgaben, Verlauf je Monat und Aufteilung nach Börse, Deckel, Kredit und manuellen Buchungen.</li>
+<li><b>Journal:</b> Alle Einträge mit Filtern (Status, Richtung, Art, Zeitraum, Suche). Erwartete Einträge lassen sich „Verbuchen“ (Zahlung eingegangen) oder stornieren. Einträge werden nie stillschweigend verändert.</li>
+</ul>
+{{fig:24-finanzen|Finanzen: Überblick}}
+{{fig:25-finanzen-journal|Das Journal mit Filtern}}
+<p>Über <b>Manuelle Buchung</b> erfasst ihr Einnahmen oder Ausgaben, die nicht aus Börse, Deckel oder Kredit stammen (Betrag, Verwendungszweck, Datum, Status). Der <b>CSV-Export</b> liefert das gefilterte Journal für Excel.</p>
+{{fig:26-finanzen-buchung|Manuelle Buchung anlegen}}
+
+<h2>Statistik</h2>
+<div class="rights"><b>Rechte:</b> <code>stats.view</code> plus je Bereich das jeweilige Ansichtsrecht</div>
+<p>Kennzahlen und Diagramme aus allen Bereichen: Finanzen, Börse, Kredit, Deckel, Lager, Fahrzeuge, Mitglieder, Chat und Systemaktivität. Jeder Abschnitt erscheint nur, wenn ihr auch das Recht auf den Bereich habt; geliefert werden ausschließlich aggregierte Zahlen, nie Namen.</p>
+{{fig:27-statistik|Statistik mit Kennzahlen und Diagrammen}}
+
+<h2>Kredit</h2>
+<div class="rights"><b>Rechte:</b> <code>credit.view</code>, <code>credit.manage</code> (verhandeln, auszahlen), <code>credit.payments</code> (Zahlungen/Ausfall), <code>credit.limits</code> (Kreditrahmen), <code>credit.delete</code></div>
+<p>Das Kreditsystem verbindet euer Team mit externen Kreditnehmern (Partner-App „Kredit“):</p>
+<ol>
+<li><b>Anfrage:</b> Der Kreditnehmer schlägt Summe, Laufzeit (Anzahl Raten) und Rhythmus (wöchentlich/monatlich) vor und sieht eine Raten-Vorschau.</li>
+<li><b>Verhandlung:</b> Das Team nimmt an oder macht einen Gegenvorschlag mit <b>Zinsen</b> (zinsfrei oder Satz pro Tag/Woche/Monat) und <b>Zahlungsziel</b>. Der Kreditnehmer kann annehmen, ablehnen oder Summe/Laufzeit gegenvorschlagen.</li>
+<li><b>Transparenz:</b> Vor der Annahme sieht der Kreditnehmer Summe, Zinssatz, Zinsen gesamt, Gesamtrückzahlung, Rate und Zahlungsziel.</li>
+<li><b>Auszahlung:</b> Das Team bestätigt die Auszahlung – es entsteht ein Tilgungsplan mit Fälligkeiten.</li>
+<li><b>Raten:</b> Zahlungen werden gemeldet und vom Team erfasst (auch Teilzahlungen). Erinnerungen gehen vor Fälligkeit und bei Überfälligkeit an beide Seiten.</li>
+<li><b>Abschluss:</b> Alle Raten bezahlt = abbezahlt. Ausfälle lassen sich markieren.</li>
+</ol>
+{{fig:28-kredit|Kredit: Übersicht mit Kennzahlen und offener Anfrage}}
+<p>Berechnung: einfache Zinsen auf die Kreditsumme; gleiche Raten, der Rundungsrest steckt in der letzten Rate. Grenzen (Kreditrahmen, Min-/Max-Summe, Laufzeit, offene Anfragen) stellt ihr unter Konfiguration → Kredit ein.</p>
+
+<h2>Deckel</h2>
+<div class="rights"><b>Rechte:</b> <code>tab.view</code>, <code>tab.manage_companies</code> (Firmen), <code>tab.statements</code> (prüfen, bestätigen, Zahlung), <code>tab.delete</code></div>
+<p>Das Deckel-System ist für <b>externe Firmen</b> gedacht, die regelmäßig einen Betrag an euch abführen. Ihr gebt keine Summen ein – <b>die Firma reicht ihre Abrechnung selbst über ein Portal ein</b>, ihr prüft sie.</p>
+<ul>
+<li><b>Firma anlegen:</b> Firmenname, Firmensitz (z. B. „PC1234 Test Drive“), Kontonummer (z. B. „LS28180705“), Intervall (wöchentlich oder monatlich), optional Ansprechpartner. Danach entsteht automatisch ein <b>persönlicher Portal-Link</b>.</li>
+<li><b>Abrechnung prüfen:</b> Jede Abrechnung zeigt Firma, Sitz, Konto und Betrag. Beim Bestätigen steht, wie viel auf welches Konto gezahlt wird; ein abweichender Betrag braucht eine Begründung.</li>
+<li><b>Ablauf:</b> Eingereicht → In Prüfung → Bestätigt → Zahlung ausstehend → Bezahlt (oder Abgelehnt – dann kann die Firma erneut einreichen). Bezahlt wird per <b>Überweisung</b> (Datum, Referenz) oder <b>Rechnung</b> (Nummer, Betrag, Datum, PDF/Bild).</li>
+</ul>
+{{fig:29-deckel|Deckel: Übersicht}}
+{{fig:30-deckel-firmen|Die Firmenliste mit Portal-Links zum Kopieren}}
+{{fig:31-deckel-firma-neu|Neue Firma anlegen}}
+
+<h2>Tickets</h2>
+<div class="rights"><b>Rechte:</b> alle Mitglieder dürfen melden; <code>tickets.manage</code> (alle Tickets bearbeiten), <code>tickets.delete</code></div>
+<p>Hier meldet ihr Fehler, Ideen und Fragen – mit Screenshot. Der Melder verfolgt Status und Antworten in „Meine Tickets“ (auch im Chat links unten), das Team sieht unter „Alle Tickets“ alles, setzt <b>Status</b> (Offen, In Arbeit, Gelöst, Geschlossen), <b>Priorität</b> und <b>Zuständigkeit</b> und antwortet. Jede Änderung löst eine Benachrichtigung aus. Auch <b>externe Partner</b> können Tickets melden und beantworten (Symbol oben rechts im Partner-Portal).</p>
+{{fig:32-tickets|Die Ticketliste mit Statusfiltern}}
+
+<h2>Chat</h2>
+<div class="rights"><b>Rechte:</b> <code>chat.view</code>, <code>chat.send</code>, <code>chat.pin</code>, <code>chat.moderate</code>, <code>chat.manage</code>, <code>chat.partners</code></div>
+<p>Der Chat besteht aus <b>Kanälen</b> (vom Administrator angelegt, optional auf Rollen beschränkt) und <b>Privatnachrichten</b>:</p>
+<ul>
+<li><b>Nachrichten:</b> <kbd>Enter</kbd> sendet, <kbd>Shift</kbd>+<kbd>Enter</kbd> macht eine neue Zeile. Antworten, Bearbeiten und Löschen eigener Nachrichten sind möglich; fremde Nachrichten löscht nur, wer <code>chat.moderate</code> hat.</li>
+<li><b>Erwähnungen:</b> <code>@MDT-220</code> benachrichtigt die Person.</li>
+<li><b>Anpinnen:</b> Wichtige Nachrichten lassen sich oben festhalten (<code>chat.pin</code>).</li>
+<li><b>Privatnachrichten:</b> Knopf <b>Neue Privatnachricht</b> links, Kontakt aus der Liste wählen (nur Personalnummern; ihr könnt euch nicht selbst schreiben). Privatchats sind nur für die beiden Beteiligten lesbar – auch Admins sehen sie nicht.</li>
+<li><b>Kanäle verwalten:</b> Kanäle erstellen, Farbe und Beschreibung wählen, auf Rollen beschränken und für externe Partner freigeben.</li>
+<li><b>Ungelesen:</b> Zähler am Kanal und am Dock-Symbol.</li>
+</ul>
+{{fig:33-chat|Der Chat mit Kanälen, Privatnachrichten und „Meine Tickets“}}
+{{fig:34-chat-kanaele|Kanäle verwalten}}
+{{fig:35-chat-privat|Neue Privatnachricht: Kontakt auswählen}}
+
+<h2>Schwarzes Brett (auf dem Desktop)</h2>
+<div class="rights"><b>Rechte:</b> <code>board.view</code> (sehen), <code>board.manage</code> (anlegen, bearbeiten, anpinnen, entfernen)</div>
+<p>Das Schwarze Brett ist <b>keine eigene App</b>, sondern liegt direkt oben rechts auf dem Desktop aller Mitglieder (externe Partner sehen es nicht). Ankündigungen bleiben dort, bis jemand sie entfernt.</p>
+<ul>
+<li><b>Hervorhebung:</b> <span class="b-info">Info</span> (blau), <span class="b-warn">Wichtig</span> (orange), <span class="b-err">Dringend</span> (rot mit Leuchtrahmen) und <span class="b-ok">Neuigkeit</span> (grün).</li>
+<li><b>Anpinnen:</b> Angepinnte Ankündigungen stehen immer ganz oben, danach die neuesten.</li>
+<li><b>Anlegen:</b> Mit dem „+“ im Kopf des Bretts – Überschrift, Text, Hervorhebung, optional anpinnen. Wichtige und dringende Ankündigungen lösen zusätzlich eine Benachrichtigung aus.</li>
+<li><b>Bearbeiten/Entfernen:</b> Die Symbole an jeder Ankündigung (Anpinnen, Stift, Papierkorb).</li>
+<li><b>Zuklappen:</b> Ein Klick auf „Schwarzes Brett“ klappt es für euch zu; der Zähler bleibt sichtbar.</li>
+</ul>
+{{fig:21-brett-neu|Eine neue Ankündigung anlegen}}
+
+<h1>Administration</h1>
+
+<h2>Benutzer</h2>
+<div class="rights"><b>Rechte:</b> <code>users.view</code>, <code>users.approve</code>, <code>users.create</code>, <code>users.edit</code>, <code>users.delete</code>, <code>users.password_reset</code>, <code>users.personnel_view</code>, <code>users.personnel_edit</code>, <code>users.avatar_edit</code>, <code>users.avatar_remove</code></div>
+<p>Die Benutzerverwaltung zeigt alle Mitglieder mit Personalnummer, Rang/Abteilung, Status, Rollen und letzter Anmeldung. Reiter filtern nach <i>Ausstehend, Aktiv, Gesperrt, Abgelehnt</i>.</p>
+{{fig:36-benutzer|Die Benutzerliste}}
+<ul>
+<li><b>Freischalten:</b> Ausstehende Registrierungen werden freigeschaltet (mit Rolle) oder abgelehnt.</li>
+<li><b>Benutzer anlegen:</b> Anzeigename, Benutzername, Passwort, Rang, Abteilung und die <b>Personalakte</b> (siehe unten). Den <b>Personalnummer</b> vergibt automatisch die nächste Nummer; nur der Superadmin darf sie ändern oder beim Anlegen selbst festlegen.</li>
+<li><b>Sperren / Entsperren</b> und Passwort zurücksetzen (<code>users.password_reset</code>).</li>
+<li><b>Rollen und direkte Rechte:</b> Rechte ergeben sich aus Rolle(n), Rang und direkten Rechten. Rechte vergeben darf nur, wer sie selbst besitzt.</li>
+</ul>
+{{fig:37-benutzer-neu|Benutzer anlegen mit Personalakte}}
+<h3>Personalakte</h3>
+<p>Zu jedem Mitglied lassen sich Vorname, Nachname, Straße, Postal Code, Telefonnummer (wird beim Tippen ins Format <i>(555) 123-4567</i> gebracht), UMail (Endung <code>@umail.com</code> fest) und Kontonummer sowie die Dokumente <b>Ausweis, Führerschein, Waffenschein</b> und optional <b>Führungszeugnis</b> hinterlegen. Die Akte sieht das Mitglied selbst und wer <code>users.personnel_view</code> hat; ändern darf, wer <code>users.personnel_edit</code> hat. Die Angaben erscheinen nirgends sonst im System.</p>
+
+<h2>Rollen und Rechte</h2>
+<div class="rights"><b>Rechte:</b> <code>roles.view</code>, <code>roles.manage</code>, <code>permissions.manage</code></div>
+<p>Hier definiert ihr, wer was darf. Standardmäßig gibt es:</p>
+<ul>
+<li><b>Superadmin:</b> fest, nicht sichtbar vergebbar, darf alles.</li>
+<li><b>Administrator:</b> frei vergebbar, hat alle fachlichen Rechte.</li>
+<li><b>13 Rang-Rollen</b> von <i>Anwärter</i> bis <i>Leitung</i>; jede Stufe enthält alle Rechte der darunterliegenden plus neue (z. B. ab <i>Abteilungsleiter</i> das Recht, Schwarzes-Brett-Einträge zu verwalten; die oberste Stufe ist Administrator-Rolle).</li>
+</ul>
+{{fig:38-rollen|Rollen und Rechte: Kacheln mit Mitgliederzahl und Rechteanzahl}}
+<p>Mit <b>Rolle erstellen</b> legt ihr eigene Rollen an und setzt die Rechte per Haken. Mit <b>Eigene Rechte</b> definiert ihr zusätzliche Rechte für Sonderfälle. Die komplette Liste aller Rechte steht im Anhang A.</p>
+<div class="warn"><b>Wichtig:</b> Rechte vergeben darf nur, wer sie selbst besitzt – es gibt keine Rechteausweitung. Superadmin-Konten können nur vom Superadmin verändert werden.</div>
+
+<h2>Organisation</h2>
+<div class="rights"><b>Rechte:</b> <code>org.view</code>, <code>org.manage</code></div>
+<p>Die Organisation besteht aus <b>Rängen</b> und <b>Abteilungen</b>. Jeder Rang hat einen übergeordneten Rang (Vorgesetzter); daraus ergibt sich die <b>Hierarchie</b>. Sie entscheidet, wessen Namen ihr sehen dürft: Echte Namen sehen Superadmin, jeder selbst und alle, die in der Kette <i>über</i> einem Mitglied stehen – alle anderen nur die Personalnummer.</p>
+{{fig:39-organisation|Die Rang-Hierarchie}}
+{{fig:40-organisation-abt|Abteilungen mit Farbe und Mitgliederzahl}}
+
+<h2>Externe Zugänge</h2>
+<div class="rights"><b>Rechte:</b> <code>partners.view</code>, <code>partners.manage</code>, <code>partners.documents</code>, <code>partners.delete</code></div>
+<p>Externe Zugänge sind Geschäftspartner ohne Benutzerkonto. Beim Anlegen wählt ihr zuerst die <b>Art</b>:</p>
+<table>
+<tr><th>Art</th><th>Pflichtangaben</th></tr>
+<tr><td><b>Lieferant</b> (liefert uns Ware)</td><td>Vorname, Nachname, Straße, Postal Code, Telefon, UMail (<code>@umail.com</code>), Kontonummer + Dokumente Ausweis, Führerschein, Waffenschein (Führungszeugnis optional)</td></tr>
+<tr><td><b>Ankäufer</b> (kauft von uns)</td><td>Name oder Bezeichnung, Ansprechpartner, Telefon (optional)</td></tr>
+</table>
+<p>Ihr wählt, welche <b>Apps</b> der Zugang bekommt (Börse, Chat, Kredit), und erhaltet einen <b>persönlichen Link</b> sowie einen <b>6-stelligen Zugangscode</b> – den Code seht ihr nur einmal. Wird für einen Zugang ein neuer Code erzeugt, werden alle alten Sitzungen dieses Partners beendet. Dokumente sieht nur, wer <code>partners.documents</code> hat.</p>
+{{fig:41-partner|Die Liste der externen Zugänge (Partnernummer <code>MDT-P-…</code>)}}
+{{fig:42-partner-neu|Externen Zugang anlegen: Art, Notiz, Code und freigeschaltete Apps}}
+
+<h2>Kategorien und Status</h2>
+<div class="rights"><b>Rechte:</b> <code>lookups.view</code>, <code>lookups.manage</code></div>
+<p>Alle Auswahllisten des Systems sind hier frei änderbar: Kraftstoffarten, Fahrzeugzustände, Fahrzeugklassen, Kartenkategorien, Lagertypen, Item-Kategorien, Übergabeorte und Geschäfts-Status. Einträge haben Beschriftung, Farbe und Beschreibung; Systemeinträge sind geschützt, genutzte Einträge lassen sich nicht löschen, nur deaktivieren.</p>
+{{fig:43-lookups|Auswahllisten und Beschriftungen}}
+
+<h2>Audit-Log</h2>
+<div class="rights"><b>Rechte:</b> <code>audit.view</code>, <code>audit.export</code></div>
+<p>Das Audit-Log protokolliert alle wichtigen Aktionen: Anmeldungen, Änderungen an Benutzern und Rechten, Börse, Lager, Kredit, Konfigurationsänderungen, Ticket- und Hack-Ereignisse. Es zeigt Zeitpunkt, Handelnden (nur Personalnummer), Aktion, Modul und Ziel. Filter nach Modul, Benutzer, Zeitraum und Suchbegriff; Export als CSV mit <code>audit.export</code>.</p>
+{{fig:47-audit|Das Audit-Log}}
+
+<h1>Konfiguration und Betrieb</h1>
+
+<h2>Die Konfiguration</h2>
+<div class="rights"><b>Rechte:</b> <code>config.view</code>, <code>config.edit</code> (Exekutive-Einstellungen: <code>hack.manage</code>)</div>
+<p>Alle Einstellungen sind in Gruppen geordnet; Änderungen werden unten mit „Änderungen speichern“ übernommen, Darstellungsänderungen zeigen sich schon beim Einstellen als Live-Vorschau.</p>
+{{fig:44-konfig|Die Konfiguration: Allgemein und Darstellung}}
+<table>
+<tr><th>Gruppe</th><th>Inhalt</th></tr>
+<tr><td>Allgemein</td><td>Systemname, Untertitel</td></tr>
+<tr><td>Darstellung</td><td>Akzent- und zweite Farbe, Design-Vorlage (Anthrazit, Schwarz, Mitternacht, Ozean), Hintergrund-Stil, Eckenradius, Dichte, Dock-Größe, Transparenz, Animationen, Widget, Wasserzeichen, <b>Build-Anzeige</b>, Desktop-Symbole</td></tr>
+<tr><td>Logo &amp; Hintergrund</td><td>Eigenes Logo und Hintergrundbild hochladen (PNG/JPEG/WebP, serverseitig geprüft)</td></tr>
+<tr><td>Zugang</td><td>Sperrbildschirm nach Inaktivität (Minuten, 0 = aus) und weitere Anmelde-Einstellungen</td></tr>
+<tr><td>Nummern &amp; Börse</td><td>Präfixe und Startnummern für Mitglieder, Geschäfte, Fahrzeuge, Firmen, Abrechnungen, Kredite und Tickets (z. B. <code>MDT-</code>), Währungssymbol</td></tr>
+<tr><td>Karte</td><td>Kartengrundlage (Kacheln oder Postal-Bild), Kachel-URL, Kalibrierung, Postleitzahlen anzeigen</td></tr>
+<tr><td>Lager, Kredit, Deckel, Tickets</td><td>Preisregel, Kreditgrenzen, Abrechnungsregeln, Ticketnummern</td></tr>
+<tr><td>Exekutive-Zugang</td><td>Subdomain, Aktiv, Schwierigkeit, Leben, Zeitlimit, Sperrzeiten, Minigame-Auswahl, Hinweise, Beute (Kapitel 7)</td></tr>
+<tr><td>Dashboard-Widgets</td><td>Welche Widgets in welcher Reihenfolge</td></tr>
+<tr><td>Updates</td><td>Update-Prüfung gegen GitHub, Info über neue Versionen</td></tr>
+<tr><td>Datensicherung</td><td>Backup erstellen, Liste vorhandener Sicherungen</td></tr>
+<tr><td>Gefahrenzone</td><td>Panel auf null zurücksetzen (nur Superadmin)</td></tr>
+</table>
+{{fig:45-konfig-hack|Konfiguration: Gruppe „Exekutive-Zugang“}}
+
+<h2>Updates, Datensicherung und Zurücksetzen</h2>
+{{fig:46-konfig-updates|Konfiguration: Updates und Sicherung}}
+<ul>
+<li><b>Update-Prüfung:</b> Alle 6 Stunden (und auf Knopfdruck) fragt das Panel bei GitHub den neuesten Stand ab. Gibt es einen neueren, erhalten Superadmin und Administratoren einmal je Version eine Benachrichtigung.</li>
+<li><b>Datensicherung:</b> „Backup erstellen“ legt eine konsistente Kopie der Datenbank an (die letzten 15 bleiben). Vor größeren Updates empfohlen.</li>
+<li><b>Panel auf null zurücksetzen:</b> Löscht <i>alle</i> Daten und Dateien; danach erscheint wieder die Ersteinrichtung. Nur für den Superadmin, nur mit Bestätigungstext „ALLES LÖSCHEN“ und Passwort; vorher wird automatisch ein Backup angelegt.</li>
+</ul>
+<div class="warn"><b>Vorsicht:</b> Das Zurücksetzen ist endgültig. Nutzt es nur, wenn ihr wirklich bei null beginnen wollt.</div>
+
+<h1>Externe Zugänge im Detail</h1>
+
+<h2>Das Partner-Portal</h2>
+<p>Ein Partner öffnet seinen persönlichen Link, gibt den Zugangscode ein und landet auf einem eigenen Desktop – mit denselben Bedienelementen wie ihr, aber nur mit den freigeschalteten Apps. Namen sieht ein Partner nie; Teammitglieder erscheinen als Personalnummer.</p>
+{{fig:51-partner-login|Anmeldung im Partner-Portal per Zugangscode}}
+{{fig:52-partner-portal|Der Partner-Desktop mit den freigeschalteten Apps}}
+<ul>
+<li><b>Börse:</b> Das Team-Angebot ansehen, annehmen, ablehnen oder ein Gegenangebot machen; eigene Angebote einstellen (mit Preisvorschlag) und auf Gesuche („Wir suchen“) antworten.</li>
+<li><b>Chat:</b> Privatnachrichten mit Ansprechpartnern des Teams und Kanäle, die ausdrücklich für Partner freigegeben wurden.</li>
+<li><b>Kredit:</b> Kredite anfragen, verhandeln, Raten verfolgen und Zahlungen melden.</li>
+<li><b>Tickets, Benachrichtigungen, Einstellungen:</b> Fehler melden und beantworten, Glocke, Ton und Lautstärke.</li>
+</ul>
+{{fig:53-partner-boerse|Partner-Portal: Börse}}
+{{fig:54-partner-kredit|Partner-Portal: Kredit mit offener Anfrage}}
+
+<h2>Das Firmenportal (Deckel)</h2>
+<p>Jede Firma erhält einen persönlichen Link (kein Passwort nötig, der Link ist das Geheimnis). Darüber wählt sie Woche oder Monat (nur Zeiträume ohne Abrechnung), trägt den fälligen Betrag samt Kommentar ein und bekommt eine Bestätigung; ihre Historie und jeder Statuswechsel erscheinen live.</p>
+{{fig:55-firmenportal|Das Firmenportal zum Einreichen der Abrechnung}}
+
+<h1>Der Exekutive-Zugang</h1>
+<p>Für Polizei und andere Exekutivkräfte gibt es – als faire Spielmechanik – die Möglichkeit, sich ins System zu „hacken“. Das ist ein <b>Rollenspiel-Minigame</b> im Terminal-Stil: Wer es besteht, erhält einige harmlose Datenschnipsel. Echte Anmeldedaten werden dabei nie berührt.</p>
+
+<h2>Zugang</h2>
+<p>Der Zugang ist dauerhaft über die eigene <b>Subdomain</b> erreichbar (Standard <code>access.example.com</code>). Auf dieser Adresse liegt nur die neutrale Terminal-Seite – ohne Namen, Logo oder Hinweis auf das Panel; alles andere liefert „Not found“. Alternativ funktioniert der geheime Link <code>/x/&lt;Schlüssel&gt;</code> auf der Hauptdomain. Die Adresse findet ihr in der Konfiguration (Karte „Exekutive-Zugang“).</p>
+{{fig:49-hack-start|Der Startbildschirm des Terminals}}
+
+<h2>Der Ablauf</h2>
+<p>Pro Zugriff werden zufällig <b>Minigames aus einem Pool von 8</b> gezogen (Standard: 4 Stufen, 3 Leben). Jeder Fehler kostet ein Leben; bei null ist der Zugriff gescheitert und die Sperrzeit läuft.</p>
+<table>
+<tr><th>Minigame</th><th>Aufgabe</th></tr>
+<tr><td>Befehle abtippen</td><td>Fiktive Befehle exakt abtippen (Einfügen ist gesperrt, zu schnelle Eingaben zählen als Automat)</td></tr>
+<tr><td>PIN knacken</td><td>Eine Ziffernfolge erraten (● richtige Stelle, ○ falsche Stelle). Nach dem ersten Knacken <b>setzt die Abwehr die PIN einmal zurück</b> – ein zweites Knacken ist nötig</td></tr>
+<tr><td>Sequenz merken</td><td>Eine Folge auf einem 3×3-Raster nachspielen</td></tr>
+<tr><td>Entschlüsseln</td><td>Per Regler die Verschiebung finden, bis ein sinnvolles Wort erscheint</td></tr>
+<tr><td>Frequenz finden</td><td>„Höher/tiefer“-Spiel mit Signalstärke</td></tr>
+<tr><td>Gültiges Token</td><td>Aus 8 Hex-Tokens das mit passender Prüfsumme wählen</td></tr>
+<tr><td>Muster erkennen</td><td>Eine Kennung kurz merken und aus Optionen wählen</td></tr>
+<tr><td>Kopfrechnen</td><td>Mehrere Aufgaben unter Zeitlimit</td></tr>
+</table>
+{{fig:50-hack-stufe|Ein Minigame: Sequenz merken, mit Anzeige von Stufe, Leben und Zeit}}
+<h3>Hinweise</h3>
+<p>In jedem Minigame gibt es <b>einmal</b> den Knopf „Hinweis anfordern“. Er lädt 3–4 Sekunden und liefert mit einer Wahrscheinlichkeit (Standard 65 %) einen kleinen Tipp – z. B. eine Stelle der PIN, ein eingegrenzter Frequenzbereich oder durchgestrichene falsche Optionen. Sonst bleibt die Suche ergebnislos; der Hinweis ist dann trotzdem verbraucht.</p>
+
+<h2>Beute und Sperrzeit</h2>
+<p>Wer alle Stufen schafft, bekommt zufällige, <b>bewusst harmlose Schnipsel</b>: Personalkennungen (nur Nummer und Rang), Teilbestände einzelner Lager (Lagernummer, wenige Positionen, gerundete Mengen), Fahrzeugkennzeichen, Geschäftsvorgänge (ohne Preis und Namen) und Partnernummern. <b>Nie</b> ausgegeben werden Klarnamen, Telefonnummern, Personalakten oder Preise. Danach gilt eine <b>gemeinsame Sperrzeit</b> für alle (Standard 30 Minuten nach Erfolg, 15 Minuten nach Misserfolg).</p>
+
+<h2>Verwaltung</h2>
+<p>Mit dem Recht <code>hack.manage</code> seht ihr in der Konfiguration den Link, das Zugriffsprotokoll und alle Einstellungen: Zugang an/aus, Subdomain, <b>Schwierigkeit</b> (Leicht/Normal/Schwer), Leben, Zeitlimit, getrennte Sperrzeiten, Anzahl der Minigames, jedes Minigame einzeln, PIN-Reset, Hinweise (an/aus, Trefferchance, Ladezeit) und die Beute-Arten. Erfolgreiche und abgewehrte Zugriffe lösen Benachrichtigungen aus und stehen im Audit-Log.</p>
+
+<h1>Installation und Betrieb</h1>
+
+<h2>Systemvoraussetzungen</h2>
+<p>Das Panel benötigt <b>Node.js ab Version 22.13</b> (keine weiteren Pakete) oder – empfohlen – <b>Docker</b>. Die Daten liegen in einer SQLite-Datenbank im Datenordner (<code>data/</code>, im Container das Volume <code>mdt-data</code>).</p>
+
+<h2>Betrieb mit Docker (Server)</h2>
+<ol>
+<li>GitHub baut bei jedem Push automatisch ein Image (<code>ghcr.io</code>).</li>
+<li>Auf dem Server liegt eine Compose-Datei (<code>stack-ghcr.yml</code>); ein Update läuft über <code>sudo bash update-mdt.sh</code> im Ordner <code>/opt/mdt-template</code>.</li>
+<li>Davor auf GitHub unter <i>Actions</i> prüfen, dass der Build ein grünes Häkchen hat.</li>
+<li>Danach zeigt die Build-Anzeige unten rechts die neue Commit-Nummer.</li>
+</ol>
+<h3>Proxy (Nginx Proxy Manager)</h3>
+<table>
+<tr><th>Einstellung</th><th>Wert</th></tr>
+<tr><td>Forward-Ziel</td><td>IP des Servers, Port <code>3847</code></td></tr>
+<tr><td>Cache Assets</td><td><b>AUS</b></td></tr>
+<tr><td>Websockets Support</td><td><b>AN</b> (Live-Updates)</td></tr>
+<tr><td>SSL</td><td>Zertifikat + Force SSL</td></tr>
+<tr><td>Container-Variable</td><td><code>TRUST_PROXY=1</code></td></tr>
+</table>
+<p>Für den Exekutive-Zugang legt ihr einen zweiten Proxy-Host für die Subdomain an (gleiches Ziel, Cache Assets aus, eigenes Zertifikat) und setzt den DNS-Eintrag.</p>
+
+<h2>Betrieb unter Windows 11</h2>
+<p>Im Ordner <code>deploy/windows</code> liegen PowerShell-Skripte für Installation, Update und Backup (Docker Desktop oder Node.js direkt). Die Schritte stehen in <code>README-WINDOWS.md</code>.</p>
+
+<h2>Updates ohne Cache-Probleme</h2>
+<p>Nach einem Update muss niemand <kbd>Strg</kbd>+<kbd>F5</kbd> drücken: Alle Programmdateien werden mit der Versionskennung angefordert, der Server verbietet Zwischenspeichern, der Browser leert beim ersten Besuch einmal seinen Cache, und offene Seiten laden sich bei einer neuen Version selbst neu. Notfalls hilft der Knopf „Zwischenspeicher leeren &amp; neu laden“ in der Build-Diagnose oder der Aufruf von <code>/reset</code>.</p>
+
+<h2>Datensicherung und Wiederherstellung</h2>
+<p>Sichert regelmäßig – im Panel (Konfiguration → Datensicherung) oder per Skript <code>scripts/backup.js</code>. Zum Wiederherstellen wird die Datenbankdatei aus dem Backup in den Datenordner zurückgelegt, während das Panel gestoppt ist.</p>
+
+<h1>Häufige Fragen und Fehlersuche</h1>
+<table>
+<tr><th>Problem</th><th>Lösung</th></tr>
+<tr><td>Ich sehe eine App nicht im Dock.</td><td>Euch fehlt das passende Recht. Klick auf die Build-Anzeige → Diagnose zeigt eure Rechte; ein Administrator weist sie über Rolle oder direkte Rechte zu.</td></tr>
+<tr><td>Nach dem Update fehlen Funktionen.</td><td>Build-Anzeige prüfen (Commit-Nummer). Dann „Zwischenspeicher leeren &amp; neu laden“ in der Diagnose. Läuft auf dem Server noch ein alter Container? <code>curl localhost:3847/api/version</code> prüfen und <code>update-mdt.sh</code> ausführen.</td></tr>
+<tr><td>Der grüne Live-Punkt ist grau.</td><td>Die Live-Verbindung ist unterbrochen; das Panel verbindet automatisch neu. Bleibt es so: Proxy-Einstellung „Websockets Support“ prüfen.</td></tr>
+<tr><td>Ein Neuer kommt nicht ins System.</td><td>Registrierung muss in der Benutzerverwaltung freigeschaltet werden (Reiter „Ausstehend“).</td></tr>
+<tr><td>Ich kann einlagern nicht: „Nicht genug Platz“.</td><td>Die Meldung nennt freie und benötigte <b>Slots</b>. Kapazität des Lagers erhöhen oder Ware umlagern.</td></tr>
+<tr><td>Die Postleitzahlen liegen auf der Karte daneben.</td><td>Unter Konfiguration → Karte die Standard-Kalibrierung prüfen (Skalierung 0,66; X 3755,8; Y 5530,1).</td></tr>
+<tr><td>Der Partner hat sich ausgesperrt.</td><td>Unter Externe Zugänge einen neuen Code erzeugen und dem Partner mitteilen.</td></tr>
+<tr><td>Ich habe mein Passwort vergessen.</td><td>Ein Administrator mit <code>users.password_reset</code> setzt es zurück.</td></tr>
+<tr><td>Der Hack-Link meldet „Gesperrt“.</td><td>Die gemeinsame Sperrzeit läuft. Ein Admin kann sie in der Konfiguration aufheben.</td></tr>
+</table>
+
+<h2>Tastenkürzel und Tipps</h2>
+<table>
+<tr><th>Taste</th><th>Wirkung</th></tr>
+<tr><td><kbd>Esc</kbd></td><td>Schließt Dialoge, Menüs und die Benachrichtigungsliste</td></tr>
+<tr><td><kbd>Enter</kbd> / <kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>Chat: senden / neue Zeile</td></tr>
+<tr><td><kbd>Strg</kbd>+<kbd>V</kbd></td><td>Screenshot aus der Zwischenablage ins Ticket-Formular einfügen</td></tr>
+<tr><td>Mausrad / Ziehen</td><td>Karte zoomen / verschieben</td></tr>
+</table>
+
+<h1 class="anhang">Anhang A: Alle Rechte</h1>
+<p>Diese Liste wird aus dem Programmcode erzeugt und enthält alle Rechte des Systems. Eine Route verlangt immer genau das Recht ihrer Aktion; bei Lesezugriffen genügt teils eines von mehreren Rechten.</p>
+{{rights}}
+
+<h1 class="anhang">Anhang B: Standard-Ränge</h1>
+<table>
+<tr><th>Nr.</th><th>Rang</th><th>Bedeutung</th></tr>
+<tr><td>1</td><td>Anwärter</td><td>Anwärter / Neuling</td></tr>
+<tr><td>2</td><td>Techniker</td><td>Koch / Techniker</td></tr>
+<tr><td>3</td><td>Beobachter</td><td>Beobachter / Späher</td></tr>
+<tr><td>4</td><td>Mitarbeiter</td><td>Ausführendes Mitglied</td></tr>
+<tr><td>5</td><td>Senior-Mitarbeiter</td><td>Elite-Mitglied</td></tr>
+<tr><td>6</td><td>Teamleiter</td><td>Leutnant / Unterführer</td></tr>
+<tr><td>7</td><td>Abteilungsleiter</td><td>Hauptmann / Kommandant</td></tr>
+<tr><td>8</td><td>Standortleiter</td><td>Leiter eines Gebiets</td></tr>
+<tr><td>9</td><td>Bereichsleiter</td><td>Zonenleiter</td></tr>
+<tr><td>10</td><td>Rechtsberater</td><td>Rechtsberater</td></tr>
+<tr><td>11</td><td>Berater der Leitung</td><td>Oberster Berater</td></tr>
+<tr><td>12</td><td>Stellvertretende Leitung</td><td>Rechte Hand</td></tr>
+<tr><td>13</td><td>Leitung</td><td>Oberster Anführer</td></tr>
+</table>
+<p>Alle Ränge, Rollen, Abteilungen und Beschreibungen sind nach der Einrichtung frei änderbar.</p>

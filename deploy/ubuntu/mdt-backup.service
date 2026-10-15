@@ -1,0 +1,15 @@
+[Unit]
+Description=MDT Datenbank-Sicherung
+
+[Service]
+Type=oneshot
+User=mdt
+Group=mdt
+WorkingDirectory=/opt/mdt
+EnvironmentFile=/etc/mdt/mdt.env
+ExecStart=@NODE@ --disable-warning=ExperimentalWarning scripts/backup.js
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mdt

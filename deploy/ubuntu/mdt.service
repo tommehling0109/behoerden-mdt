@@ -1,0 +1,34 @@
+[Unit]
+Description=MDT Web-Terminal
+Documentation=file:///opt/mdt/deploy/ubuntu/README-UBUNTU.md
+After=network.target
+
+[Service]
+Type=simple
+User=mdt
+Group=mdt
+WorkingDirectory=/opt/mdt
+EnvironmentFile=/etc/mdt/mdt.env
+ExecStart=@NODE@ --disable-warning=ExperimentalWarning server/index.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+
+# Härtung: die App darf nur ihr Datenverzeichnis beschreiben
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mdt
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

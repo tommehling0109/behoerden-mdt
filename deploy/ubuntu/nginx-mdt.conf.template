@@ -1,0 +1,39 @@
+# MDT hinter nginx. Platzhalter @DOMAIN@ und @PORT@ ersetzt install.sh.
+# Eigener Server-Block pro Domain – andere Seiten (z. B. ein Forum) bleiben unberührt.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name @DOMAIN@;
+
+    # Uploads (Logo/Hintergrund) kommen als Base64 im JSON-Body
+    client_max_body_size 12m;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # Echtzeit-Verbindung (Server-Sent Events): nicht puffern, lange offen halten
+    location ~ ^/api/(p/)?events$ {
+        proxy_pass http://127.0.0.1:@PORT@;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        gzip off;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:@PORT@;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        # Überschreiben statt anhängen: verhindert gefälschte Client-IPs (die App vertraut diesem Header)
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}

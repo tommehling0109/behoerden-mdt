@@ -1,0 +1,37 @@
+# MDT – Portainer-/Docker-Stack (plug and play)
+# WICHTIG: "docker compose up" baut ein vorhandenes Image NICHT neu. Nach jedem Update mit Neubau starten: "docker compose up -d --build" (Portainer: Stack → "Update the stack" mit aktiviertem "Re-pull image and redeploy" bzw. Build).
+# Einfacher und zuverlässiger: deploy/portainer/stack-ghcr.yml (fertiges Image, pull_policy: always). Der installierte Stand steht unten rechts im MDT als "Build <Commit>".
+#
+# Portainer: Stacks → Add stack → "Repository" (diese Datei wird automatisch gebaut)
+#            (Portainer baut das Image dann direkt aus dem Repository). Alternative ohne Build: deploy/portainer/stack-ghcr.yml.
+# Keine Variablen nötig – alles hat sinnvolle Standardwerte. Beim ersten Aufruf im Browser startet die Ersteinrichtung.
+services:
+  mdt:
+    image: mdt-template:local
+    build:
+      context: .
+      args:
+        GIT_SHA: "${GIT_SHA:-unknown}"
+    container_name: mdt-template
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${MDT_PORT:-3847}:3847"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "3847"
+      MDT_DATA_DIR: "/data"
+      # 1 setzen, wenn ein Reverse-Proxy (Nginx Proxy Manager, Traefik, Caddy …) mit HTTPS davor sitzt
+      TRUST_PROXY: "${TRUST_PROXY:-0}"
+      TZ: "${TZ:-Europe/Berlin}"
+    volumes:
+      - mdt-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3847/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  mdt-data:

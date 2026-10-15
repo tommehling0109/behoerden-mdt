@@ -1,0 +1,7 @@
+/data/
+node_modules/
+*.log
+.env
+.claude/
+docs/anleitung/anleitung.html
+docs/anleitung/pages.json

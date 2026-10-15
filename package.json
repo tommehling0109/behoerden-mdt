@@ -1,0 +1,17 @@
+{
+  "name": "mdt-tablet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Generisches, konfigurierbares Web-MDT mit Desktop-Oberfläche (Phase 1 – Foundation)",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
+    "seed:demo": "node --disable-warning=ExperimentalWarning scripts/seed-demo.js",
+    "test": "node --disable-warning=ExperimentalWarning scripts/smoke-test.js",
+    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js"
+  }
+}

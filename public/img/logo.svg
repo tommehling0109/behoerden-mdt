@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1380 930" fill="none">
+  <g stroke="#f5f5f5" stroke-width="56" stroke-linejoin="round" stroke-linecap="round" opacity="0.96">
+    <path d="M440 330 L690 130 L940 330 V610 C940 680 880 740 690 810 C500 740 440 680 440 610 Z"/>
+  </g>
+  <text x="690" y="560" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="260" font-weight="700" letter-spacing="10" fill="#f5f5f5">MDT</text>
+</svg>

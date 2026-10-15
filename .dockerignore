@@ -1,0 +1,11 @@
+.git
+.github
+.claude
+data
+node_modules
+*.log
+deploy
+docs
+README.md
+Dockerfile
+docker-compose*.yml
