@@ -1202,4 +1202,13 @@ export const SCHEMA_MIGRATIONS = [
     PRIMARY KEY (user_id, step_id)
   );
   `,
+  /* v-behoerden – Behörden-Trennung: zusätzliche Behörden-Freischaltung pro Mitglied */ `
+  CREATE TABLE user_departments (
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, department_id)
+  );
+  CREATE INDEX idx_vehicles_department ON vehicles(department_id);
+  CREATE INDEX idx_warehouses_department ON warehouses(department_id);
+  `,
 ];

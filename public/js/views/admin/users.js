@@ -1,7 +1,7 @@
 import { h, mount, fmtDateTime, timeAgo, debounce } from '../../ui/dom.js';
 import { icon } from '../../ui/icons.js';
 import {
-  button, busy, table, tabs, avatar, userAvatar, statusBadge, roleChip, memberNo, rankBadge, deptBadge, field, input, select, checkbox, formError,
+  button, busy, table, tabs, avatar, userAvatar, statusBadge, roleChip, memberNo, rankBadge, deptBadge, field, input, select, checkbox, toggle, formError,
   openModal, confirmDialog, toast, skeletons, empty, note, badge,
 } from '../../ui/kit.js';
 import { api } from '../../api.js';
@@ -166,8 +166,14 @@ export default async function render(container, ctx) {
     const un = input({ value: user?.username ?? '', maxLength: 32, disabled: !!user, autocomplete: 'off' });
     const pw = input({ type: 'password', autocomplete: 'new-password', placeholder: 'Mindestens 8 Zeichen' });
     const editable = !user || can('users.edit');
-    const rankSel = select([{ value: '', label: '— kein Rang —' }, ...org.ranks.map((r) => ({ value: r.id, label: r.name }))], user?.rank?.id ?? '', { disabled: !editable });
-    const deptSel = select([{ value: '', label: '— keine Abteilung —' }, ...org.departments.map((d) => ({ value: d.id, label: d.name }))], user?.department?.id ?? '', { disabled: !editable });
+    const deptSel = select([{ value: '', label: '— keine Behörde —' }, ...org.departments.map((d) => ({ value: d.id, label: d.name }))], user?.department?.id ?? '', { disabled: !editable });
+    // Ränge gehören zu einer Behörde: die Auswahl zeigt nur Ränge der gewählten Behörde (plus behördenlose Ränge)
+    const rankSel = select([], '', { disabled: !editable });
+    const fillRanks = (keep) => { const dep = Number(deptSel.value) || null; rankSel.replaceChildren(...[{ value: '', label: '— kein Rang —' }, ...org.ranks.filter((r) => !dep || r.departmentId == null || r.departmentId === dep).map((r) => ({ value: r.id, label: r.name }))].map((o) => h('option', { value: o.value, selected: String(o.value) === String(keep ?? '') }, o.label))); };
+    fillRanks(user?.rank?.id); deptSel.addEventListener('change', () => fillRanks(''));
+    // Zusätzliche Behörden-Freigaben (z. B. Verbindungsbeamte): nur mit dem Recht „Alle Behörden“
+    const mayExtra = !!user && (state.user.isSuperadmin || state.user.isAdmin || can('departments.all'));
+    const extraBoxes = mayExtra ? org.departments.map((d) => [d, toggle(d.name, (user.extraDepartments ?? []).some((x) => x.id === d.id))]) : null;
     let supSel = null;
     if (user) {
       let candidates = [];
@@ -215,7 +221,8 @@ export default async function render(container, ctx) {
         } })),
       h('div', { class: 'form-row' }, field('Name (Vor- und Nachname)', dn), field('Benutzername', un)),
       noInput && field('Dienstnummer', noInput, { help: 'Eindeutig, z. B. 1042 oder LSPD-1042. Vergeben und ändern dürfen Superadmin und Mitglieder mit dem Recht „Dienstnummern vergeben“.' }),
-      h('div', { class: 'form-row' }, field('Rang', rankSel), field('Abteilung', deptSel)),
+      h('div', { class: 'form-row' }, field('Behörde', deptSel), field('Rang', rankSel)),
+      extraBoxes && field('Zusätzliche Behörden-Freigaben', h('div', { class: 'stack' }, ...extraBoxes.map(([, c]) => c)), { help: 'Zugriff auf Fahrzeuge, Lager und Mitglieder weiterer Behörden – zusätzlich zur eigenen.' }),
       supSel && field('Vorgesetzter', supSel, { help: 'Direkter Vorgesetzter dieses Mitglieds.' }),
       !user && field('Passwort', pw),
       !user && h('div', null, h('div', { class: 'sep' }), h('div', { class: 'label', style: { marginBottom: '6px' } }, 'Persönliche Angaben (Personalakte)'),
@@ -300,7 +307,7 @@ export default async function render(container, ctx) {
         } else {
           await api.patch(`/api/users/${user.id}`, {
             displayName: user.isSelf ? dn.value : undefined,
-            rankId: idOrNull(rankSel), departmentId: idOrNull(deptSel), supervisorId: supSel ? idOrNull(supSel) : undefined,
+            rankId: idOrNull(rankSel), departmentId: idOrNull(deptSel), extraDepartmentIds: extraBoxes ? extraBoxes.filter(([, c]) => c.input.checked).map(([d]) => d.id) : undefined, supervisorId: supSel ? idOrNull(supSel) : undefined,
             roleIds: roleBoxes.filter(([, c]) => c.input.checked).map(([r]) => r.id),
             permissions: permBoxes.filter(([, c]) => c.input.checked).map(([p]) => p.key),
             memberNumber: noInput && noInput.value.trim() && noInput.value.trim() !== user.memberNumber ? noInput.value.trim() : undefined,

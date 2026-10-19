@@ -1,3 +1,4 @@
+import { deptWhere } from '../core/scope.js';
 import { all, get, now } from '../core/db.js';
 import { getConfig } from '../core/config.js';
 import { lookupEntries } from '../core/lookups.js';
@@ -34,9 +35,10 @@ function fillProblems(user) {
 }
 
 const SOURCES = [
-  { area: 'vehicles', label: 'Fahrzeuge', icon: 'car', perm: 'vehicles.view', list: () => {
+  { area: 'vehicles', label: 'Fahrzeuge', icon: 'car', perm: 'vehicles.view', list: (user) => {
     const cond = Object.fromEntries(lookupEntries('vehicles.condition').map((e) => [e.key, e.label])), out = [], t = today();
-    for (const v of all("SELECT id, vehicle_number, plate, name, condition_key, inspection_due, updated_at FROM vehicles WHERE is_active = 1 AND (condition_key IN ('damaged','broken') OR (inspection_due IS NOT NULL AND inspection_due < ?))", t)) {
+    const dw = deptWhere(user, 'department_id');
+    for (const v of all(`SELECT id, vehicle_number, plate, name, condition_key, inspection_due, updated_at FROM vehicles WHERE is_active = 1 AND ${dw.sql} AND (condition_key IN ('damaged','broken') OR (inspection_due IS NOT NULL AND inspection_due < ?))`, ...dw.params, t)) {
       const who = [v.plate, v.name].filter(Boolean).join(' · ') || v.vehicle_number;
       if (['damaged', 'broken'].includes(v.condition_key)) out.push({ id: `vehicle:${v.id}:cond`, severity: v.condition_key === 'broken' ? 'critical' : 'warn', title: `${who} · ${cond[v.condition_key] ?? v.condition_key}`, detail: 'Fahrzeug ist nicht einsatzbereit', since: v.updated_at, target: { app: 'vehicles' } });
       if (v.inspection_due && v.inspection_due < t) out.push({ id: `vehicle:${v.id}:insp`, severity: 'warn', title: `${who} · Prüfung überfällig`, detail: `Fällig war ${v.inspection_due.split('-').reverse().join('.')}`, since: `${v.inspection_due}T00:00:00.000Z`, target: { app: 'vehicles' } });

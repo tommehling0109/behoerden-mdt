@@ -139,7 +139,7 @@ try {
   const hr = (await admin.call('GET', '/api/roles')).roles.find((x) => x.name === 'Personalabteilung'), officerRole = (await admin.call('GET', '/api/roles')).roles.find((x) => x.name === 'Beamter');
   r = await admin.call('POST', '/api/users', { displayName: 'Erika Beispiel', username: 'erika', password: 'passwort123', rankId: lspdOfficer.id, departmentId: lspdOfficer.departmentId, roleIds: [officerRole.id] });
   assert.equal(r.status, 201); const erika = r.user; assert.equal(erika.memberNumber, '1002'); assert.equal(erika.displayName, 'Erika Beispiel'); // 1000 = Superadmin, 1001 = Neuer
-  r = await admin.call('POST', '/api/users', { displayName: 'Hans Personal', username: 'hans', password: 'passwort123', roleIds: [hr.id] });
+  r = await admin.call('POST', '/api/users', { displayName: 'Hans Personal', username: 'hans', password: 'passwort123', roleIds: [hr.id], departmentId: lspdOfficer.departmentId });
   assert.equal(r.status, 201); const hans = r.user; ok('Neue Mitglieder erhalten automatisch fortlaufende Dienstnummern (ab 1000)');
   assert.equal((await pf.call('POST', '/api/auth/login', { username: 'erika', password: 'passwort123' })).status, 200);
   assert.equal((await pf2.call('POST', '/api/auth/login', { username: 'hans', password: 'passwort123' })).status, 200);
@@ -151,6 +151,45 @@ try {
   assert.equal((await pf.call('PATCH', `/api/users/${erika.id}`, { memberNumber: '9999' })).status, 403); ok('Ohne das Recht: Dienstnummer ändern → 403');
   assert.equal((await pf2.call('PATCH', `/api/users/${hans.id}`, { memberNumber: 'lspd-4711' })).status, 409); ok('Dienstnummern sind eindeutig');
   assert.equal((await pf2.call('PATCH', `/api/users/${erika.id}`, { displayName: 'Erika Musterfrau' })).user.displayName, 'Erika Musterfrau'); ok('Personalabteilung kann Namen ändern');
+
+  // ══ Behörden-Trennung ══
+  const bcsoDeputy = org.ranks.find((x) => x.name === 'Deputy (BCSO)'), bcsoDept = bcsoDeputy.departmentId, lspdDept = lspdOfficer.departmentId;
+  r = await admin.call('POST', '/api/users', { displayName: 'Bob Sheriff', username: 'bob', password: 'passwort123', rankId: bcsoDeputy.id, departmentId: bcsoDept, roleIds: [officerRole.id] });
+  assert.equal(r.status, 201); const bob = r.user;
+  const hansList = (await pf2.call('GET', '/api/users')).users;
+  assert.ok(hansList.some((u) => u.id === erika.id) && !hansList.some((u) => u.id === bob.id)); ok('Mitgliederliste: nur die eigene Behörde (LSPD sieht keine BCSO-Mitglieder)');
+  assert.equal((await pf2.call('GET', `/api/users/${bob.id}`)).status, 404); assert.equal((await pf2.call('PATCH', `/api/users/${bob.id}`, { displayName: 'X Y' })).status, 404);
+  assert.equal((await pf2.call('POST', `/api/users/${bob.id}/status`, { status: 'blocked' })).status, 404); ok('Fremde Behörde: Details, Bearbeiten und Sperren → 404');
+  assert.equal((await pf2.call('POST', '/api/users', { displayName: 'Fremd Eintrag', username: 'fremd', password: 'passwort123', departmentId: bcsoDept })).status, 403); ok('Mitglieder nur in der eigenen Behörde anlegen');
+  assert.equal((await pf2.call('PATCH', `/api/users/${erika.id}`, { rankId: bcsoDeputy.id })).status, 400); ok('Rang einer anderen Behörde wird abgelehnt');
+  assert.equal((await admin.call('GET', '/api/users')).users.length >= 5, true); ok('Administrator sieht alle Behörden');
+
+  // Fahrzeuge
+  const vcls = { fuel: 'petrol', condition: 'ready' };
+  await admin.call('PATCH', `/api/roles/${officerRole.id}`, { permissions: [...(await admin.call('GET', '/api/roles')).roles.find((x) => x.id === officerRole.id).permissions, 'vehicles.create', 'vehicles.edit', 'warehouse.manage', 'warehouse.stock'] });
+  const bobC = new Client(); await bobC.call('POST', '/api/auth/login', { username: 'bob', password: 'passwort123' });
+  r = await bobC.call('POST', '/api/vehicles', { name: 'Streifenwagen', plate: 'BC-100', ...vcls }); assert.equal(r.status, 201, JSON.stringify(r)); const vBcso = r.vehicle;
+  assert.equal(vBcso.department.id, bcsoDept); ok('Neues Fahrzeug erhält automatisch die eigene Behörde');
+  r = await pf.call('POST', '/api/vehicles', { name: 'Funkwagen', plate: 'LS-200', ...vcls }); assert.equal(r.status, 201, JSON.stringify(r)); const vLspd = r.vehicle;
+  assert.equal(vLspd.department.id, lspdDept);
+  assert.deepEqual((await pf.call('GET', '/api/vehicles')).vehicles.map((v) => v.plate), ['LS-200']); assert.deepEqual((await bobC.call('GET', '/api/vehicles')).vehicles.map((v) => v.plate), ['BC-100']); ok('Fahrzeugliste: jede Behörde sieht nur ihren Fuhrpark');
+  assert.equal((await pf.call('GET', `/api/vehicles/${vBcso.id}`)).status, 404); assert.equal((await pf.call('PATCH', `/api/vehicles/${vBcso.id}`, { name: 'Geklaut' })).status, 404); assert.ok([403, 404].includes((await pf.call('DELETE', `/api/vehicles/${vBcso.id}`)).status)); ok('Fremde Fahrzeuge: lesen, ändern, löschen nicht möglich');
+  assert.equal((await pf.call('POST', '/api/vehicles', { name: 'Fremd', plate: 'LS-201', departmentId: bcsoDept, ...vcls })).status, 403); ok('Fahrzeug nicht für fremde Behörde anlegbar');
+  assert.equal((await admin.call('GET', '/api/vehicles')).vehicles.length, 2); ok('Administrator sieht alle Fahrzeuge');
+  r = await pf.call('GET', '/api/vehicles/options'); assert.deepEqual(r.departments.map((d) => d.id), [lspdDept]); ok('Auswahl der Behörde beschränkt auf eigene');
+
+  // Zusätzliche Freigabe (z. B. FIB-Verbindungsbeamter)
+  assert.equal((await pf2.call('PATCH', `/api/users/${erika.id}`, { extraDepartmentIds: [bcsoDept] })).status, 403); ok('Zusätzliche Behörden-Freigabe braucht das Recht „Alle Behörden“');
+  r = await admin.call('PATCH', `/api/users/${erika.id}`, { extraDepartmentIds: [bcsoDept] }); assert.equal(r.status, 200); assert.equal(r.user.extraDepartments[0].id, bcsoDept);
+  assert.deepEqual((await pf.call('GET', '/api/vehicles')).vehicles.map((v) => v.plate).sort(), ['BC-100', 'LS-200']); ok('Mit Zusatzfreigabe sieht das Mitglied auch den Fuhrpark der zweiten Behörde');
+  await admin.call('PATCH', `/api/users/${erika.id}`, { extraDepartmentIds: [] });
+  assert.equal((await pf.call('GET', '/api/vehicles')).vehicles.length, 1);
+
+  // Lager
+  r = await bobC.call('POST', '/api/warehouses', { name: 'Waffenkammer BCSO' }); assert.equal(r.status, 201, JSON.stringify(r)); const whB = r.warehouse; assert.equal(whB.department.id, bcsoDept);
+  assert.equal((await pf.call('GET', '/api/warehouses')).warehouses.length, 0); assert.equal((await pf.call('GET', `/api/warehouses/${whB.id}`)).status, 404); assert.ok([403, 404].includes((await pf.call('DELETE', `/api/warehouses/${whB.id}`)).status));
+  assert.equal((await bobC.call('GET', '/api/warehouses')).warehouses.length, 1); assert.equal((await admin.call('GET', '/api/warehouses')).warehouses.length, 1); ok('Lager: nur die eigene Behörde sieht und verwaltet ihre Lager (Admin sieht alle)');
+
 
   // Audit + Chat mit Klarnamen
   r = await admin.call('GET', '/api/audit?limit=50'); assert.ok(r.rows.some((x) => /Hans Personal|Erika/.test(x.actor + ' ' + (x.targetLabel ?? '')))); ok('Audit-Log nennt Handelnde und Betroffene mit Name (Dienstnummer)');

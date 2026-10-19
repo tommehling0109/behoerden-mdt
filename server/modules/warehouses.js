@@ -4,6 +4,7 @@ import { audit } from '../core/audit.js';
 import { allocateNumber } from '../core/numbers.js';
 import { getConfig } from '../core/config.js';
 import { labelForUser, memberLabel } from '../core/identity.js';
+import { deptWhere, requireDept, clampDept, defaultDept, assignableDepts, canSeeDept } from '../core/scope.js';
 import { notify } from '../core/notifications.js';
 import { loadAccess } from '../core/permissions.js';
 import { registerLookup, lookupEntries, isActiveEntry } from '../core/lookups.js';
@@ -41,6 +42,7 @@ const nonNegPrice = (v, name, max = 100_000_000) => {
 
 /** Zugriffsstufe eines Mitglieds auf ein Lager: 'manage' | 'view' | null. */
 export function levelFor(user, wh) {
+  if (!canSeeDept(user, wh.department_id)) return null;
   if (user.isAdmin || user.perms.has('warehouse.manage')) return 'manage';
   if (!user.perms.has('warehouse.view')) return null;
   const mine = new Set(user.roles.map((r) => r.id));
@@ -250,7 +252,7 @@ export default {
     r.get('/api/warehouse/options', { perm: 'warehouse.view' }, (ctx) => ({
       types: lookupEntries('warehouse.type', { onlyActive: true }),
       categories: lookupEntries('market.item_category', { onlyActive: true }),
-      departments: all('SELECT id, name, color FROM departments ORDER BY sort_order, name'),
+      departments: assignableDepts(ctx.user),
       roles: ctx.user.perms.has('warehouse.manage') ? all('SELECT id, name, color FROM roles ORDER BY name') : [],
       members: ctx.user.perms.has('warehouse.manage') ? all("SELECT id, member_number, status FROM users WHERE status = 'active' ORDER BY member_number, id").map((u) => ({ id: u.id, label: memberLabel(u) })) : [],
       weekdays: WEEKDAYS,
@@ -282,6 +284,7 @@ export default {
 
     r.post('/api/warehouses', { perm: 'warehouse.manage' }, (ctx) => {
       const f = whFields(ctx.body, false);
+      f.department_id = clampDept(ctx.user, ctx.body.departmentId === undefined ? defaultDept(ctx.user) : f.department_id);
       if (get('SELECT 1 x FROM warehouses WHERE name = ?', f.name)) throw conflict('Ein Lager mit diesem Namen existiert bereits.');
       const id = tx(() => {
         const t = now();
@@ -301,7 +304,9 @@ export default {
       const id = Number(ctx.params.id);
       const cur = get(`${SQL} WHERE w.id = ?`, id);
       if (!cur) throw notFound('Lager nicht gefunden.');
+      requireDept(ctx.user, cur.department_id, 'Lager nicht gefunden.');
       const f = whFields(ctx.body, true);
+      if ('department_id' in f) f.department_id = clampDept(ctx.user, f.department_id);
       if (f.name && get('SELECT 1 x FROM warehouses WHERE name = ? AND id != ?', f.name, id)) throw conflict('Ein Lager mit diesem Namen existiert bereits.');
       if (f.capacity != null && f.capacity < usedSpace(id)) throw conflict(`Die Kapazität darf nicht unter der aktuellen Belegung (${usedSpace(id).toLocaleString('de-DE')}) liegen.`);
       tx(() => {
@@ -319,6 +324,7 @@ export default {
     r.post('/api/warehouses/:id/rent/paid', { perm: 'warehouse.manage' }, (ctx) => {
       const id = Number(ctx.params.id), w = get('SELECT * FROM warehouses WHERE id = ?', id);
       if (!w) throw notFound('Lager nicht gefunden.');
+      requireDept(ctx.user, w.department_id, 'Lager nicht gefunden.');
       if (!w.rent_due_date || (w.rent_paid_date && w.rent_paid_date >= w.rent_due_date)) throw conflict('Es sind keine Lagerkosten offen.');
       run('UPDATE warehouses SET rent_paid_date = ?, updated_at = ? WHERE id = ?', localDay(new Date()), now(), id);
       audit(ctx, { action: 'warehouse.rent_paid', module: 'warehouse', targetType: 'warehouse', targetId: id, targetLabel: `${w.warehouse_number} · ${w.name}`, after: { dueDate: w.rent_due_date } });
@@ -329,6 +335,7 @@ export default {
       const id = Number(ctx.params.id);
       const cur = get('SELECT * FROM warehouses WHERE id = ?', id);
       if (!cur) throw notFound('Lager nicht gefunden.');
+      requireDept(ctx.user, cur.department_id, 'Lager nicht gefunden.');
       if (get('SELECT COALESCE(SUM(quantity),0) q FROM warehouse_stock WHERE warehouse_id = ?', id).q > 0 && !(ctx.query.force === '1' && ctx.user.isSuperadmin)) throw conflict('Das Lager ist nicht leer. Lagere den Bestand aus oder um – oder setze das Lager auf inaktiv. (Superadmins können es samt Inhalt löschen.)');
       run('DELETE FROM warehouse_stock WHERE warehouse_id = ?', id);
       run('DELETE FROM warehouses WHERE id = ?', id);

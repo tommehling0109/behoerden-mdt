@@ -1,3 +1,4 @@
+import { deptWhere } from '../core/scope.js';
 import { all, get, run, now } from '../core/db.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -207,7 +208,7 @@ export default {
     r.get('/api/map/vehicles', { perm: 'map.view' }, (ctx) => {
       if (!ctx.user.perms.has('vehicles.view') || !ctx.user.perms.has('vehicles.view_location')) return { vehicles: [] };
       const rows = all(`SELECT v.id, v.vehicle_number, v.plate, v.name, v.loc_x, v.loc_y, v.location_text, v.parking_slot, v.condition_key, k.label cond_label, k.color cond_color
-        FROM vehicles v LEFT JOIN lookups k ON k.list_key = 'vehicles.condition' AND k.key = v.condition_key WHERE v.is_active = 1 AND v.loc_x IS NOT NULL`);
+        FROM vehicles v LEFT JOIN lookups k ON k.list_key = 'vehicles.condition' AND k.key = v.condition_key WHERE v.is_active = 1 AND v.loc_x IS NOT NULL AND ${deptWhere(ctx.user, 'v.department_id').sql}`, ...deptWhere(ctx.user, 'v.department_id').params);
       return { vehicles: rows.map((v) => ({ id: v.id, number: v.vehicle_number, plate: v.plate, name: v.name, x: v.loc_x, y: v.loc_y, location: v.location_text, slot: v.parking_slot, condition: { key: v.condition_key, label: v.cond_label, color: v.cond_color } })) };
     });
   },

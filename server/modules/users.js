@@ -7,6 +7,7 @@ import { audit } from '../core/audit.js';
 import { assignMemberNumber } from '../core/members.js';
 import { startOnboarding } from './onboarding.js';
 import { memberLabel, formatMember } from '../core/identity.js';
+import { deptWhere, requireDept, clampDept, seesAllDepartments, assignableDepts } from '../core/scope.js';
 import { purgeUserFiles } from '../core/purge.js';
 
 const SUPERADMIN_ROLE = { id: -1, name: 'Superadmin', color: '#f59e0b', isSystem: true };
@@ -56,7 +57,15 @@ function detail(id, viewerId = null) {
     ...listDto(u, viewerId), roles: u.is_superadmin ? [SUPERADMIN_ROLE, ...acc.roles] : acc.roles, isAdmin: acc.isAdmin,
     directPermissions: all('SELECT permission_key k FROM user_permissions WHERE user_id = ?', id).map((r) => r.k),
     effectivePermissions: [...acc.perms],
+    extraDepartments: all('SELECT d.id, d.name, d.color FROM user_departments x JOIN departments d ON d.id = x.department_id WHERE x.user_id = ? ORDER BY d.sort_order, d.name', id),
   };
+}
+
+/** Ein Rang gehört zu genau einer Behörde: Rang und Behörde des Mitglieds müssen zusammenpassen. */
+function checkRankDept(rankId, deptId) {
+  if (rankId == null || deptId == null) return;
+  const rd = get('SELECT department_id d FROM ranks WHERE id = ?', rankId)?.d;
+  if (rd != null && rd !== deptId) throw bad('Dieser Rang gehört zu einer anderen Behörde.');
 }
 
 const optId = (v, table, label) => {
@@ -143,9 +152,11 @@ export default {
       if (status && STATUSES.includes(status)) { where.push('u.status = ?'); p.push(status); }
       // Suche nach Name, Dienstnummer oder Login
       if (q) { where.push('(u.member_number LIKE ? OR u.display_name LIKE ? OR u.username LIKE ?)'); p.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+      const dw = deptWhere(ctx.user, 'u.department_id'); where.push(dw.sql); p.push(...dw.params);
       const rows = all(`${ORG_JOIN} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY u.created_at DESC`, ...p);
       const roles = all('SELECT ur.user_id, r.id, r.name, r.color FROM user_roles ur JOIN roles r ON r.id=ur.role_id ORDER BY r.sort_order,r.name');
-      const counts = Object.fromEntries(all('SELECT status, COUNT(*) c FROM users GROUP BY status').map((x) => [x.status, x.c]));
+      const dc = deptWhere(ctx.user, 'department_id');
+      const counts = Object.fromEntries(all(`SELECT status, COUNT(*) c FROM users WHERE ${dc.sql} GROUP BY status`, ...dc.params).map((x) => [x.status, x.c]));
       return {
         counts,
         users: rows.map((u) => ({ ...listDto(u, ctx.user), watch: watchFor(ctx.user, u.id), roles: [...(u.is_superadmin ? [SUPERADMIN_ROLE] : []), ...roles.filter((x) => x.user_id === u.id).map(({ id, name, color }) => ({ id, name, color }))] })),
@@ -155,6 +166,7 @@ export default {
     r.get('/api/users/:id', { perm: 'users.view' }, (ctx) => {
       const d = detail(Number(ctx.params.id), ctx.user);
       if (!d) throw notFound('Benutzer nicht gefunden.');
+      requireDept(ctx.user, d.department?.id ?? null, 'Benutzer nicht gefunden.');
       return { user: { ...d, watch: watchFor(ctx.user, d.id) } };
     });
 
@@ -169,7 +181,8 @@ export default {
       const status = b.status === 'pending' ? 'pending' : 'active';
       assertCanAssign(ctx.user, roleIds, []);
       const rankId = optId(b.rankId, 'ranks', 'Rang');
-      const departmentId = optId(b.departmentId, 'departments', 'Abteilung');
+      const departmentId = clampDept(ctx.user, optId(b.departmentId, 'departments', 'Abteilung'));
+      checkRankDept(rankId, departmentId);
       assertCanAssignRank(ctx.user, rankId);
       if (get('SELECT 1 x FROM users WHERE username = ?', username)) throw conflict('Dieser Benutzername ist bereits vergeben.');
       let memberNo = null;
@@ -199,6 +212,7 @@ export default {
       const id = Number(ctx.params.id);
       const cur = get('SELECT * FROM users WHERE id = ?', id);
       if (!cur) throw notFound('Benutzer nicht gefunden.');
+      requireDept(ctx.user, cur.department_id, 'Benutzer nicht gefunden.');
       const b = ctx.body;
       const before = snapshot(id);
       const target = loadAccess(id);
@@ -235,9 +249,16 @@ export default {
         if (b.rankId !== undefined) {
           const rankId = optId(b.rankId, 'ranks', 'Rang');
           if (rankId !== cur.rank_id) assertCanAssignRank(ctx.user, rankId);
+          checkRankDept(rankId, b.departmentId !== undefined ? optId(b.departmentId, 'departments', 'Abteilung') : cur.department_id);
           run('UPDATE users SET rank_id = ?, updated_at = ? WHERE id = ?', rankId, now(), id);
         }
-        if (b.departmentId !== undefined) run('UPDATE users SET department_id = ?, updated_at = ? WHERE id = ?', optId(b.departmentId, 'departments', 'Abteilung'), now(), id);
+        if (b.departmentId !== undefined) { const nd = clampDept(ctx.user, optId(b.departmentId, 'departments', 'Abteilung')); checkRankDept(b.rankId !== undefined ? optId(b.rankId, 'ranks', 'Rang') : cur.rank_id, nd); run('UPDATE users SET department_id = ?, updated_at = ? WHERE id = ?', nd, now(), id); }
+        if (b.extraDepartmentIds !== undefined) {
+          if (!seesAllDepartments(ctx.user)) throw forbidden('Zusätzliche Behörden-Freigaben vergeben nur Mitglieder mit dem Recht „Alle Behörden“ (departments.all).');
+          const ids = intList(b.extraDepartmentIds, 'Behörden').filter((x) => get('SELECT 1 x FROM departments WHERE id = ?', x));
+          run('DELETE FROM user_departments WHERE user_id = ?', id);
+          for (const d of ids) run('INSERT OR IGNORE INTO user_departments (user_id, department_id) VALUES (?, ?)', id, d);
+        }
         if (b.supervisorId !== undefined) {
           const sid = optId(b.supervisorId, 'users', 'Vorgesetzter');
           assertSupervisor(id, sid);
@@ -253,6 +274,7 @@ export default {
       const id = Number(ctx.params.id);
       const cur = get('SELECT * FROM users WHERE id = ?', id);
       if (!cur) throw notFound('Benutzer nicht gefunden.');
+      requireDept(ctx.user, cur.department_id, 'Benutzer nicht gefunden.');
       const status = ctx.body.status;
       if (!STATUSES.includes(status)) throw bad('Ungültiger Status.');
       const reason = str(ctx.body.reason, 'Begründung', { max: 300, required: false });
@@ -277,8 +299,9 @@ export default {
 
     r.post('/api/users/:id/password', { perm: 'users.password_reset' }, (ctx) => {
       const id = Number(ctx.params.id);
-      const cur = get('SELECT id, member_number, status FROM users WHERE id = ?', id);
+      const cur = get('SELECT id, member_number, status, department_id FROM users WHERE id = ?', id);
       if (!cur) throw notFound('Benutzer nicht gefunden.');
+      requireDept(ctx.user, cur.department_id, 'Benutzer nicht gefunden.');
       if (loadAccess(id).isAdmin && !ctx.user.isAdmin) throw forbidden('Administratoren dürfen nur von Administratoren verwaltet werden.');
       if (get('SELECT is_superadmin s FROM users WHERE id = ?', id)?.s && !ctx.user.isSuperadmin) throw forbidden('Superadmins dürfen nur von Superadmins verwaltet werden.');
       const err = checkPassword(ctx.body.password);
@@ -293,6 +316,7 @@ export default {
       const id = Number(ctx.params.id);
       const cur = get('SELECT * FROM users WHERE id = ?', id);
       if (!cur) throw notFound('Benutzer nicht gefunden.');
+      requireDept(ctx.user, cur.department_id, 'Benutzer nicht gefunden.');
       if (id === ctx.user.id) throw forbidden('Du kannst dich nicht selbst löschen.');
       if (loadAccess(id).isAdmin && !ctx.user.isAdmin) throw forbidden('Administratoren dürfen nur von Administratoren gelöscht werden.');
       if (cur.is_superadmin && !ctx.user.isSuperadmin) throw forbidden('Superadmins dürfen nur von Superadmins gelöscht werden.');

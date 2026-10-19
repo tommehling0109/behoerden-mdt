@@ -60,6 +60,7 @@ export default {
   permissions: [
     ['org.view', 'Ränge, Abteilungen und Hierarchie ansehen'],
     ['org.manage', 'Ränge und Abteilungen verwalten'],
+    ['departments.all', 'Alle Behörden sehen und bearbeiten (Fahrzeuge, Lager, Mitglieder) – sonst nur die eigene Behörde'],
   ],
   config: [
     { key: 'members.number_prefix', group: 'Mitglieder', label: 'Präfix der Dienstnummer', help: 'Wird neuen Nummern vorangestellt (leer = reine Zahl). Bereits vergebene Nummern ändern sich nie.', type: 'string', default: '', max: 12 },

@@ -1,3 +1,4 @@
+import { deptWhere } from '../core/scope.js';
 import { all, get } from '../core/db.js';
 import { getConfig } from '../core/config.js';
 
@@ -36,18 +37,18 @@ const SECTIONS = {
     topCompanies: all("SELECT c.name label, COALESCE(SUM(COALESCE(s.approved_cents, s.submitted_cents)),0) cents FROM tab_statements s JOIN tab_companies c ON c.id = s.company_id WHERE s.status = 'paid' GROUP BY s.company_id ORDER BY cents DESC LIMIT 5"),
     companies: get("SELECT COUNT(*) n FROM tab_companies WHERE status = 'active'").n,
   }) },
-  warehouse: { perm: ['warehouse.view'], build: () => ({
-    warehouses: get('SELECT COUNT(*) n FROM warehouses WHERE is_active = 1').n,
-    totalUnits: get('SELECT COALESCE(SUM(quantity),0) n FROM warehouse_stock').n,
-    valueRef: get('SELECT ROUND(COALESCE(SUM(s.quantity * COALESCE(i.reference_price,0)),0), 2) v FROM warehouse_stock s JOIN market_items i ON i.id = s.item_id').v,
-    topItems: all('SELECT i.name label, i.unit, SUM(s.quantity) qty FROM warehouse_stock s JOIN market_items i ON i.id = s.item_id GROUP BY s.item_id HAVING qty > 0 ORDER BY qty DESC LIMIT 6'),
-    byWarehouse: all('SELECT w.name label, COALESCE(SUM(s.quantity),0) qty FROM warehouses w LEFT JOIN warehouse_stock s ON s.warehouse_id = w.id WHERE w.is_active = 1 GROUP BY w.id ORDER BY qty DESC LIMIT 6'),
-  }) },
-  vehicles: { perm: ['vehicles.view'], build: () => ({
-    total: get('SELECT COUNT(*) n FROM vehicles').n,
-    byCondition: all('SELECT condition_key key, COUNT(*) n FROM vehicles GROUP BY condition_key'),
-    inspectionDue: get("SELECT COUNT(*) n FROM vehicles WHERE inspection_due IS NOT NULL AND inspection_due <= ?", day(-30)).n,
-  }) },
+  warehouse: { perm: ['warehouse.view'], build: (u) => { const dw = deptWhere(u, 'w.department_id'); return ({
+    warehouses: get(`SELECT COUNT(*) n FROM warehouses w WHERE w.is_active = 1 AND ${dw.sql}`, ...dw.params).n,
+    totalUnits: get(`SELECT COALESCE(SUM(s.quantity),0) n FROM warehouse_stock s JOIN warehouses w ON w.id = s.warehouse_id WHERE ${dw.sql}`, ...dw.params).n,
+    valueRef: get(`SELECT ROUND(COALESCE(SUM(s.quantity * COALESCE(i.reference_price,0)),0), 2) v FROM warehouse_stock s JOIN market_items i ON i.id = s.item_id JOIN warehouses w ON w.id = s.warehouse_id WHERE ${dw.sql}`, ...dw.params).v,
+    topItems: all(`SELECT i.name label, i.unit, SUM(s.quantity) qty FROM warehouse_stock s JOIN market_items i ON i.id = s.item_id JOIN warehouses w ON w.id = s.warehouse_id WHERE ${dw.sql} GROUP BY s.item_id HAVING qty > 0 ORDER BY qty DESC LIMIT 6`, ...dw.params),
+    byWarehouse: all(`SELECT w.name label, COALESCE(SUM(s.quantity),0) qty FROM warehouses w LEFT JOIN warehouse_stock s ON s.warehouse_id = w.id WHERE w.is_active = 1 AND ${dw.sql} GROUP BY w.id ORDER BY qty DESC LIMIT 6`, ...dw.params),
+  }); } },
+  vehicles: { perm: ['vehicles.view'], build: (u) => { const dw = deptWhere(u, 'department_id'); return ({
+    total: get(`SELECT COUNT(*) n FROM vehicles WHERE ${dw.sql}`, ...dw.params).n,
+    byCondition: all(`SELECT condition_key key, COUNT(*) n FROM vehicles WHERE ${dw.sql} GROUP BY condition_key`, ...dw.params),
+    inspectionDue: get(`SELECT COUNT(*) n FROM vehicles WHERE inspection_due IS NOT NULL AND inspection_due <= ? AND ${dw.sql}`, day(-30), ...dw.params).n,
+  }); } },
   chat: { perm: ['chat.view'], build: () => ({
     perDay: perDay(all('SELECT substr(created_at,1,10) d, COUNT(*) n FROM chat_messages WHERE deleted_at IS NULL AND created_at >= ? GROUP BY d', day(13)), 14),
     total: get('SELECT COUNT(*) n FROM chat_messages WHERE deleted_at IS NULL').n,
@@ -69,7 +70,7 @@ export default {
   routes(r) {
     r.get('/api/stats', { perm: 'stats.view' }, (ctx) => {
       const sections = {};
-      for (const [key, s] of Object.entries(SECTIONS)) if (s.perm.some((p) => ctx.user.perms.has(p))) sections[key] = s.build();
+      for (const [key, s] of Object.entries(SECTIONS)) if (s.perm.some((p) => ctx.user.perms.has(p))) sections[key] = s.build(ctx.user);
       return { currency: getConfig('market.currency') ?? '$', generatedAt: new Date().toISOString(), sections };
     });
   },

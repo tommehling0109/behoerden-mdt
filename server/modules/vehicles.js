@@ -5,6 +5,7 @@ import { bad, conflict, forbidden, notFound, str } from '../core/http.js';
 import { audit } from '../core/audit.js';
 import { allocateNumber } from '../core/numbers.js';
 import { labelForUser } from '../core/identity.js';
+import { deptWhere, requireDept, clampDept, defaultDept, assignableDepts, canSeeDept } from '../core/scope.js';
 import { registerLookup, lookupEntries, isActiveEntry } from '../core/lookups.js';
 import { decodeImage, IMAGE_MIME } from '../core/images.js';
 import { registerWidget } from './dashboard.js';
@@ -32,14 +33,15 @@ registerLookup({
 registerWidget({
   id: 'vehicles-overview', title: 'Fuhrpark', size: 'medium', permission: 'vehicles.view',
   data: (ctx) => {
-    const counts = Object.fromEntries(all('SELECT condition_key k, COUNT(*) c FROM vehicles WHERE is_active = 1 GROUP BY condition_key').map((x) => [x.k, x.c]));
+    const dw = deptWhere(ctx.user, 'department_id');
+    const counts = Object.fromEntries(all(`SELECT condition_key k, COUNT(*) c FROM vehicles WHERE is_active = 1 AND ${dw.sql} GROUP BY condition_key`, ...dw.params).map((x) => [x.k, x.c]));
     const today = new Date().toISOString().slice(0, 10);
     return {
-      total: get('SELECT COUNT(*) c FROM vehicles WHERE is_active = 1').c,
+      total: get(`SELECT COUNT(*) c FROM vehicles WHERE is_active = 1 AND ${dw.sql}`, ...dw.params).c,
       conditions: lookupEntries('vehicles.condition').map((e) => ({ key: e.key, label: e.label, color: e.color, count: counts[e.key] ?? 0 })),
-      lowFuel: get('SELECT COUNT(*) c FROM vehicles WHERE is_active = 1 AND fuel_level IS NOT NULL AND fuel_level < 20').c,
-      inspectionOverdue: get('SELECT COUNT(*) c FROM vehicles WHERE is_active = 1 AND inspection_due IS NOT NULL AND inspection_due < ?', today).c,
-      mine: get('SELECT COUNT(*) c FROM vehicles WHERE is_active = 1 AND assigned_user_id = ?', ctx.user.id).c,
+      lowFuel: get(`SELECT COUNT(*) c FROM vehicles WHERE is_active = 1 AND fuel_level IS NOT NULL AND fuel_level < 20 AND ${dw.sql}`, ...dw.params).c,
+      inspectionOverdue: get(`SELECT COUNT(*) c FROM vehicles WHERE is_active = 1 AND inspection_due IS NOT NULL AND inspection_due < ? AND ${dw.sql}`, today, ...dw.params).c,
+      mine: get(`SELECT COUNT(*) c FROM vehicles WHERE is_active = 1 AND assigned_user_id = ? AND ${dw.sql}`, ctx.user.id, ...dw.params).c,
     };
   },
 });
@@ -70,7 +72,7 @@ function dto(v, user) {
     createdAt: v.created_at, updatedAt: v.updated_at,
   };
 }
-const load = (id) => get(`${SQL} WHERE v.id = ?`, id);
+const load = (id, user) => { const v = get(`${SQL} WHERE v.id = ?`, id); if (v && user) requireDept(user, v.department_id, 'Fahrzeug nicht gefunden.'); return v; };
 
 function addHistory(vehicleId, userId, kind, text) {
   run('INSERT INTO vehicle_events (vehicle_id,user_id,kind,text,created_at) VALUES (?,?,?,?,?)', vehicleId, userId, kind, text, now());
@@ -128,12 +130,13 @@ function fields(b, user, partial) {
   if (b.departmentId !== undefined) {
     const d = b.departmentId == null || b.departmentId === '' ? null : b.departmentId;
     if (d != null && !get('SELECT 1 x FROM departments WHERE id = ?', d)) throw bad('Unbekannte Abteilung.');
-    out.department_id = d;
+    out.department_id = clampDept(user, d);
   }
   if (b.assignedUserId !== undefined) {
     if (!user.perms.has('vehicles.assign')) throw forbidden('Für die Zuweisung an Mitglieder fehlt dir das Recht „vehicles.assign“.');
     const a = b.assignedUserId == null || b.assignedUserId === '' ? null : b.assignedUserId;
     if (a != null && !get(`SELECT 1 x FROM users WHERE id = ? AND status = 'active'`, a)) throw bad('Unbekanntes Mitglied.');
+    if (a != null && !canSeeDept(user, get('SELECT department_id d FROM users WHERE id = ?', a)?.d ?? null)) throw bad('Dieses Mitglied gehört zu einer anderen Behörde.');
     out.assigned_user_id = a;
   }
   return out;
@@ -182,8 +185,8 @@ export default {
     r.get('/api/vehicles/options', { perm: 'vehicles.view' }, (ctx) => ({
       categories: lookupEntries('vehicles.category', { onlyActive: true }),
       fuels: lookupEntries('vehicles.fuel'), conditions: lookupEntries('vehicles.condition'),
-      departments: all('SELECT id, name, color FROM departments ORDER BY sort_order, name'),
-      members: ctx.user.perms.has('vehicles.assign') ? all(`SELECT id, member_number, status FROM users WHERE status = 'active' ORDER BY member_number`).map((u) => ({ id: u.id, label: labelForUser(u.id, ctx.user.id) })) : [],
+      departments: assignableDepts(ctx.user),
+      members: ctx.user.perms.has('vehicles.assign') ? all(`SELECT id, member_number, status FROM users WHERE status = 'active' AND ${deptWhere(ctx.user, 'department_id').sql} ORDER BY member_number`, ...deptWhere(ctx.user, 'department_id').params).map((u) => ({ id: u.id, label: labelForUser(u.id, ctx.user.id) })) : [],
     }));
 
     r.get('/api/vehicles', { perm: 'vehicles.view' }, (ctx) => {
@@ -195,13 +198,15 @@ export default {
       if (FUELS.includes(fuel)) { where.push('v.fuel_type = ?'); p.push(fuel); }
       if (category) { where.push('v.category_id = ?'); p.push(Number(category)); }
       if (assigned === 'me') { where.push('v.assigned_user_id = ?'); p.push(ctx.user.id); }
+      const dw = deptWhere(ctx.user, 'v.department_id'); where.push(dw.sql); p.push(...dw.params);
       const rows = all(`${SQL} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY v.is_active DESC, v.updated_at DESC`, ...p);
-      const counts = Object.fromEntries(all('SELECT condition_key k, COUNT(*) c FROM vehicles WHERE is_active = 1 GROUP BY condition_key').map((x) => [x.k, x.c]));
-      return { vehicles: rows.map((v) => dto(v, ctx.user)), counts, total: get('SELECT COUNT(*) c FROM vehicles').c };
+      const dc = deptWhere(ctx.user, 'department_id');
+      const counts = Object.fromEntries(all(`SELECT condition_key k, COUNT(*) c FROM vehicles WHERE is_active = 1 AND ${dc.sql} GROUP BY condition_key`, ...dc.params).map((x) => [x.k, x.c]));
+      return { vehicles: rows.map((v) => dto(v, ctx.user)), counts, total: get(`SELECT COUNT(*) c FROM vehicles WHERE ${dc.sql}`, ...dc.params).c };
     });
 
     r.get('/api/vehicles/:id', { perm: 'vehicles.view' }, (ctx) => {
-      const v = load(Number(ctx.params.id));
+      const v = load(Number(ctx.params.id), ctx.user);
       if (!v) throw notFound('Fahrzeug nicht gefunden.');
       const history = all('SELECT * FROM vehicle_events WHERE vehicle_id = ? ORDER BY id DESC LIMIT 100', v.id).map((e) => ({
         id: e.id, kind: e.kind, text: e.text, createdAt: e.created_at, actor: e.user_id ? labelForUser(e.user_id, ctx.user.id) : 'System',
@@ -211,6 +216,7 @@ export default {
 
     r.post('/api/vehicles', { perm: 'vehicles.create' }, (ctx) => {
       const f = fields(ctx.body, ctx.user, false);
+      if (ctx.body.departmentId === undefined) f.department_id = defaultDept(ctx.user);
       if (get('SELECT 1 x FROM vehicles WHERE plate = ?', f.plate)) throw conflict('Dieses Kennzeichen ist bereits vergeben.');
       if (f.vin && get('SELECT 1 x FROM vehicles WHERE vin = ?', f.vin)) throw conflict('Diese Fahrgestellnummer existiert bereits.');
       const id = tx(() => {
@@ -228,7 +234,7 @@ export default {
 
     r.patch('/api/vehicles/:id', { perm: 'vehicles.edit' }, (ctx) => {
       const id = Number(ctx.params.id);
-      const cur = load(id);
+      const cur = load(id, ctx.user);
       if (!cur) throw notFound('Fahrzeug nicht gefunden.');
       const f = fields(ctx.body, ctx.user, true);
       if (f.plate && get('SELECT 1 x FROM vehicles WHERE plate = ? AND id != ?', f.plate, id)) throw conflict('Dieses Kennzeichen ist bereits vergeben.');
@@ -246,7 +252,7 @@ export default {
 
     r.delete('/api/vehicles/:id', { perm: 'vehicles.delete' }, (ctx) => {
       const id = Number(ctx.params.id);
-      const cur = load(id);
+      const cur = load(id, ctx.user);
       if (!cur) throw notFound('Fahrzeug nicht gefunden.');
       if (cur.image_ext) try { unlinkSync(join(imgDir(), `${id}.${cur.image_ext}`)); } catch { /* egal */ }
       run('DELETE FROM vehicles WHERE id = ?', id);
@@ -257,7 +263,7 @@ export default {
     // Fahrzeugbild
     r.post('/api/vehicles/:id/image', { perm: 'vehicles.edit', bodyLimit: 4 * 1024 * 1024 }, (ctx) => {
       const id = Number(ctx.params.id);
-      const cur = load(id);
+      const cur = load(id, ctx.user);
       if (!cur) throw notFound('Fahrzeug nicht gefunden.');
       const { buf, ext } = decodeImage(ctx.body.data, 2 * 1024 * 1024, bad);
       mkdirSync(imgDir(), { recursive: true });
@@ -270,7 +276,7 @@ export default {
     });
     r.delete('/api/vehicles/:id/image', { perm: 'vehicles.edit' }, (ctx) => {
       const id = Number(ctx.params.id);
-      const cur = load(id);
+      const cur = load(id, ctx.user);
       if (!cur) throw notFound('Fahrzeug nicht gefunden.');
       if (cur.image_ext) try { unlinkSync(join(imgDir(), `${id}.${cur.image_ext}`)); } catch { /* egal */ }
       run('UPDATE vehicles SET image_ext = NULL, image_version = image_version + 1, updated_at = ? WHERE id = ?', now(), id);
