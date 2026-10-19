@@ -17,7 +17,7 @@ export function startPresence(isLocked, onBeat, { partner = false } = {}) {
   const base = partner ? '/api/p/presence' : '/api/presence';
   if (beat) return;
   let lastLocked = null;
-  const send = () => { if (state.config['presence.enabled'] === false) return; lastLocked = !!isLocked(); return api.post(base, { tabId, locked: lastLocked }).then(() => onBeat?.()).catch(() => { /* Server kurz weg – nächster Schlag */ }); };
+  const send = () => { if (state.config['presence.enabled'] === false && partner) return; lastLocked = !!isLocked(); return api.post(base, { tabId, locked: lastLocked }).then(() => onBeat?.()).catch(() => { /* Server kurz weg – nächster Schlag */ }); };
   const tick = setInterval(send, 25_000);
   const watch = setInterval(() => { if (!!isLocked() !== lastLocked) send(); }, 2_000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') send(); });

@@ -16,6 +16,12 @@ registerLookup({
   usage: (id) => get('SELECT COUNT(*) c FROM map_points WHERE category_id = ?', id).c,
 });
 
+const ZONE_KINDS = [['danger', 'Gefahrenzone', '#e5484d'], ['restricted', 'Sperrgebiet', '#f59e0b'], ['farming', 'Farming-Gebiet', '#84cc16'], ['territory', 'Revier / Gebiet', '#5b82b8'], ['meeting', 'Treffpunkt-Bereich', '#8b5cf6'], ['other', 'Sonstiges', '#9aa0a6']];
+registerLookup({
+  key: 'map.zone_kind', module: 'Karte', label: 'Zonen-Arten', description: 'Gefahrenzone, Sperrgebiet, Farming-Gebiet … – Farbe und Beschriftung der eingezeichneten Bereiche, frei erweiterbar.',
+  fixed: ZONE_KINDS.map(([key, label, color]) => ({ key, label, color })), usage: (id) => get('SELECT COUNT(*) c FROM map_zones WHERE kind_id = ?', id).c,
+});
+
 export const MAP_ICONS = ['pin', 'flag', 'star', 'home', 'storage', 'wrench', 'fuel', 'car', 'boat', 'plane', 'medical', 'shield', 'dollar', 'camera', 'target', 'key', 'users', 'alert'];
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -38,6 +44,37 @@ const dto = (p, user) => ({
   category: p.category_id ? { id: p.category_id, label: p.cat_label, color: p.cat_color } : null,
   x: p.x, y: p.y, visibility: p.visibility, createdAt: p.created_at, updatedAt: p.updated_at, canEdit: user.perms.has('map.edit'),
 });
+
+// ── Zonen (frei eingezeichnete Bereiche) ──
+const ZSQL = 'SELECT z.*, k.label kind_label, k.color kind_color FROM map_zones z LEFT JOIN lookups k ON k.id = z.kind_id';
+const zoneDto = (z, user) => ({
+  id: z.id, name: z.name, description: z.description, kind: z.kind_id ? { id: z.kind_id, label: z.kind_label, color: z.kind_color } : null, color: z.color ?? z.kind_color ?? '#5b82b8', ownColor: z.color,
+  opacity: z.opacity, points: JSON.parse(z.points), visibility: z.visibility, updatedAt: z.updated_at, canEdit: user.perms.has('map.edit'),
+});
+/** Punkte prüfen und aufräumen: 3–400 Eckpunkte [x, y] in Spielkoordinaten, auf 0,1 gerundet, direkte Dopplungen entfernt. */
+function cleanPoints(v) {
+  if (!Array.isArray(v) || v.length > 600) throw bad('Eine Zone braucht mindestens drei und höchstens 400 Punkte.');
+  const out = [];
+  for (const p of v) {
+    if (!Array.isArray(p) || p.length !== 2 || !p.every(Number.isFinite) || p.some((n) => Math.abs(n) > 20000)) throw bad('Ungültige Koordinaten in der Zone.');
+    const q = [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10], last = out[out.length - 1];
+    if (!last || last[0] !== q[0] || last[1] !== q[1]) out.push(q);
+  }
+  if (out.length > 1 && out[0][0] === out[out.length - 1][0] && out[0][1] === out[out.length - 1][1]) out.pop();
+  if (out.length < 3 || out.length > 400) throw bad('Eine Zone braucht mindestens drei und höchstens 400 verschiedene Punkte.');
+  return out;
+}
+function zoneFields(b, partial) {
+  const out = {}, has = (k) => !partial || b[k] !== undefined;
+  if (has('name')) out.name = str(b.name, 'Name', { min: 1, max: 80 });
+  if (b.description !== undefined || !partial) out.description = str(b.description ?? '', 'Notizen', { max: 1500, required: false });
+  if (b.kindId !== undefined) { const k = b.kindId == null || b.kindId === '' ? null : b.kindId; if (k != null && !isActiveEntry('map.zone_kind', k)) throw bad('Unbekannte Art.'); out.kind_id = k; }
+  if (b.color !== undefined) { if (b.color !== null && !COLOR_RE.test(b.color)) throw bad('Ungültige Farbe.'); out.color = b.color; }
+  if (b.opacity !== undefined) { if (!Number.isFinite(b.opacity) || b.opacity < 0.05 || b.opacity > 0.7) throw bad('Deckkraft: zwischen 5 % und 70 %.'); out.opacity = Math.round(b.opacity * 100) / 100; }
+  if (has('points')) out.points = JSON.stringify(cleanPoints(b.points));
+  if (b.visibility !== undefined) { if (!['all', 'editors'].includes(b.visibility)) throw bad('Ungültige Sichtbarkeit.'); out.visibility = b.visibility; }
+  return out;
+}
 
 function fields(b, partial) {
   const out = {};
@@ -63,7 +100,7 @@ export default {
   name: 'map',
   permissions: [
     ['map.view', 'Karte öffnen und Waypoints ansehen'],
-    ['map.edit', 'Karte: Waypoints setzen, bearbeiten und löschen'],
+    ['map.edit', 'Karte: Waypoints und Zonen (eingezeichnete Bereiche) setzen, bearbeiten und löschen'],
   ],
   config: [
     { key: 'map.base', group: 'Karte', label: 'Kartengrundlage', help: 'Kacheln = Satellitenkarte aus Kacheln (Standard) mit eingeblendeten Postleitzahlen. Bild = die mitgelieferte Postal-Karte (Nummern aufgedruckt).', type: 'select', default: 'tiles', options: [{ value: 'image', label: 'Bild (Postal-Karte)' }, { value: 'tiles', label: 'Kacheln (Satellit)' }] },
@@ -89,7 +126,7 @@ export default {
       calib: { scale: getConfig('map.calib_scale'), x: getConfig('map.calib_x'), y: getConfig('map.calib_y') },
       showPostals: getConfig('map.show_postals'), icons: MAP_ICONS,
       canEdit: ctx.user.perms.has('map.edit'), canVehicles: ctx.user.perms.has('vehicles.view') && ctx.user.perms.has('vehicles.view_location'),
-      categories: lookupEntries('map.category', { onlyActive: true }),
+      categories: lookupEntries('map.category', { onlyActive: true }), zoneKinds: lookupEntries('map.zone_kind', { onlyActive: true }),
     }));
 
     r.get('/api/map/layers', { perm: 'map.view' }, (ctx) => ({
@@ -139,6 +176,30 @@ export default {
       if (!cur) throw notFound('Waypoint nicht gefunden.');
       run('DELETE FROM map_points WHERE id = ?', id);
       audit(ctx, { action: 'map.point_deleted', module: 'map', targetType: 'point', targetId: id, targetLabel: cur.name });
+      return { ok: true };
+    });
+
+    // Zonen: frei eingezeichnete Bereiche
+    r.get('/api/map/zones', { perm: 'map.view' }, (ctx) => ({ zones: all(`${ZSQL} ${ctx.user.perms.has('map.edit') ? '' : "WHERE z.visibility = 'all'"} ORDER BY z.name`).map((z) => zoneDto(z, ctx.user)) }));
+    r.post('/api/map/zones', { perm: 'map.edit', bodyLimit: 200_000 }, (ctx) => {
+      const f = zoneFields(ctx.body, false), t = now(), cols = { opacity: 0.25, visibility: 'all', ...f, created_by: ctx.user.id, created_at: t, updated_at: t };
+      if (cols.kind_id === undefined) { const o = all("SELECT id FROM lookups WHERE list_key = 'map.zone_kind' AND key = 'other'")[0]; if (o) cols.kind_id = o.id; }
+      const id = Number(run(`INSERT INTO map_zones (${Object.keys(cols).join(',')}) VALUES (${Object.keys(cols).map(() => '?').join(',')})`, ...Object.values(cols)).lastInsertRowid);
+      audit(ctx, { action: 'map.zone_created', module: 'map', targetType: 'zone', targetId: id, targetLabel: f.name, after: { name: f.name, points: JSON.parse(f.points).length } });
+      ctx.status = 201; return { zone: zoneDto(get(`${ZSQL} WHERE z.id = ?`, id), ctx.user) };
+    });
+    r.patch('/api/map/zones/:id', { perm: 'map.edit', bodyLimit: 200_000 }, (ctx) => {
+      const id = Number(ctx.params.id), cur = get(`${ZSQL} WHERE z.id = ?`, id); if (!cur) throw notFound('Zone nicht gefunden.');
+      const f = zoneFields(ctx.body, true), cols = Object.keys(f);
+      if (cols.length) run(`UPDATE map_zones SET ${cols.map((c) => `${c} = ?`).join(', ')}, updated_at = ? WHERE id = ?`, ...cols.map((c) => f[c]), now(), id);
+      const z = get(`${ZSQL} WHERE z.id = ?`, id);
+      audit(ctx, { action: 'map.zone_updated', module: 'map', targetType: 'zone', targetId: id, targetLabel: z.name, before: { name: cur.name, points: JSON.parse(cur.points).length }, after: { name: z.name, points: JSON.parse(z.points).length } });
+      return { zone: zoneDto(z, ctx.user) };
+    });
+    r.delete('/api/map/zones/:id', { perm: 'map.edit' }, (ctx) => {
+      const id = Number(ctx.params.id), cur = get('SELECT * FROM map_zones WHERE id = ?', id); if (!cur) throw notFound('Zone nicht gefunden.');
+      run('DELETE FROM map_zones WHERE id = ?', id);
+      audit(ctx, { action: 'map.zone_deleted', module: 'map', targetType: 'zone', targetId: id, targetLabel: cur.name });
       return { ok: true };
     });
 

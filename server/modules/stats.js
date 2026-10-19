@@ -19,9 +19,9 @@ const SECTIONS = {
     newLast30: get('SELECT COUNT(*) n FROM users WHERE created_at >= ?', day(30)).n,
   }) },
   market: { perm: ['market.view'], build: () => ({
-    dealsByStatus: all('SELECT status key, COUNT(*) n, COALESCE(SUM(quantity * unit_price),0) volume FROM market_deals GROUP BY status'),
-    completedVolume: get("SELECT COALESCE(SUM(quantity * unit_price),0) v FROM market_deals WHERE status = 'completed'").v,
-    topItems: all("SELECT i.name label, SUM(d.quantity) qty, SUM(d.quantity * d.unit_price) volume FROM market_deals d JOIN market_items i ON i.id = d.item_id WHERE d.status = 'completed' GROUP BY d.item_id ORDER BY volume DESC LIMIT 5"),
+    dealsByStatus: all('SELECT d.status key, COUNT(*) n, ROUND(COALESCE(SUM((SELECT SUM(l.quantity * l.unit_price) FROM market_deal_lines l WHERE l.deal_id = d.id)),0), 2) volume FROM market_deals d GROUP BY d.status'),
+    completedVolume: get("SELECT ROUND(COALESCE(SUM(l.quantity * l.unit_price),0), 2) v FROM market_deal_lines l JOIN market_deals d ON d.id = l.deal_id WHERE d.status = 'completed'").v,
+    topItems: all("SELECT i.name label, SUM(l.quantity) qty, ROUND(SUM(l.quantity * l.unit_price), 2) volume FROM market_deal_lines l JOIN market_deals d ON d.id = l.deal_id JOIN market_items i ON i.id = l.item_id WHERE d.status = 'completed' GROUP BY l.item_id ORDER BY volume DESC LIMIT 5"),
     activePartners: get('SELECT COUNT(DISTINCT partner_id) n FROM market_deals WHERE created_at >= ?', day(30)).n,
     perDay: perDay(all('SELECT substr(created_at,1,10) d, COUNT(*) n FROM market_deals WHERE created_at >= ? GROUP BY d', day(13)), 14),
   }) },
@@ -39,7 +39,7 @@ const SECTIONS = {
   warehouse: { perm: ['warehouse.view'], build: () => ({
     warehouses: get('SELECT COUNT(*) n FROM warehouses WHERE is_active = 1').n,
     totalUnits: get('SELECT COALESCE(SUM(quantity),0) n FROM warehouse_stock').n,
-    valueRef: get('SELECT COALESCE(SUM(s.quantity * COALESCE(i.reference_price,0)),0) v FROM warehouse_stock s JOIN market_items i ON i.id = s.item_id').v,
+    valueRef: get('SELECT ROUND(COALESCE(SUM(s.quantity * COALESCE(i.reference_price,0)),0), 2) v FROM warehouse_stock s JOIN market_items i ON i.id = s.item_id').v,
     topItems: all('SELECT i.name label, i.unit, SUM(s.quantity) qty FROM warehouse_stock s JOIN market_items i ON i.id = s.item_id GROUP BY s.item_id HAVING qty > 0 ORDER BY qty DESC LIMIT 6'),
     byWarehouse: all('SELECT w.name label, COALESCE(SUM(s.quantity),0) qty FROM warehouses w LEFT JOIN warehouse_stock s ON s.warehouse_id = w.id WHERE w.is_active = 1 GROUP BY w.id ORDER BY qty DESC LIMIT 6'),
   }) },

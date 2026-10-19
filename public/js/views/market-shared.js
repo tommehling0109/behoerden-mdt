@@ -1,7 +1,7 @@
 // Gemeinsame Bausteine der Börse – genutzt von der Mitarbeiter-App und dem Partner-Portal.
 import { h, mount, fmtDateTime, timeAgo } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
-import { button, busy, field, input, select, formError, openModal, confirmDialog, toast, skeletons, note, levelBadge } from '../ui/kit.js';
+import { button, busy, field, input, select, formError, openModal, confirmDialog, toast, skeletons, note, levelBadge, badge } from '../ui/kit.js';
 import { api } from '../api.js';
 import { subscribe } from '../realtime.js';
 import { state, can } from '../state.js';
@@ -38,11 +38,32 @@ export function timeline(events) {
       e.text && h('div', { class: 'tl-text' }, e.text)))));
 }
 
+/** Tabelle der Positionen eines Geschäfts (nur bei mehreren Items). */
+export const linesTable = (d) => (d.lineCount > 1 ? h('div', { class: 'deal-lines' }, h('table', { class: 'table' }, h('thead', null, h('tr', null, ['Item', 'Menge', 'Preis pro Einheit', 'Summe'].map((t, i) => h('th', { style: i ? { textAlign: 'right' } : null }, t)))),
+  h('tbody', null, d.lines.map((l) => h('tr', null, h('td', null, l.item.name, ' ', catBadge(l.item.category)), h('td', { style: { textAlign: 'right' } }, `${l.quantity.toLocaleString('de-DE')} ${l.item.unit}`), h('td', { style: { textAlign: 'right' } }, money(l.unitPrice)), h('td', { style: { textAlign: 'right' } }, h('b', null, money(l.total)))))),
+  h('tfoot', null, h('tr', null, h('td', { colspan: 3, style: { textAlign: 'right' } }, 'Gesamt'), h('td', { style: { textAlign: 'right' } }, h('b', null, money(d.total))))))) : null);
+
+/** Gegenangebot für mehrere Positionen: Menge und Preis je Item. */
+export function linesDialog({ title, lines, submitLabel = 'Senden', onSubmit }) {
+  const err = h('div'), total = h('div', { class: 'total-line' }), text = h('textarea', { class: 'textarea', maxLength: 500, placeholder: 'Nachricht (optional)' });
+  const rows = lines.map((l) => ({ l, qty: input({ type: 'number', min: 1, value: l.quantity, inputmode: 'numeric' }), price: input({ type: 'number', min: 0.01, step: '0.01', value: l.unitPrice, inputmode: 'decimal' }), sum: h('b', null) }));
+  const upd = () => { let t = 0; for (const r of rows) { const s = Number(r.qty.value) * Number(r.price.value); r.sum.textContent = s > 0 ? money(s) : '–'; if (s > 0) t += s; } mount(total, 'Gesamt: ', h('b', null, money(t))); };
+  for (const r of rows) { r.qty.addEventListener('input', upd); r.price.addEventListener('input', upd); } upd();
+  const m = openModal({ title, wide: true,
+    body: h('div', null, err, h('div', { class: 'lines-edit' }, rows.map((r) => h('div', { class: 'le-row' }, h('div', { class: 'le-name' }, r.l.item.name, h('div', { class: 'muted', style: { fontSize: '12px' } }, `aktuell ${r.l.quantity.toLocaleString('de-DE')} × ${money(r.l.unitPrice)}`)), field(`Menge (${r.l.item.unit})`, r.qty), field('Preis pro Einheit', r.price), h('div', { class: 'le-sum' }, r.sum)))),
+      total, h('div', { style: { height: '12px' } }), field('Nachricht', text)),
+    footer: [button('Abbrechen', { onClick: () => m.close() }), button(submitLabel, { variant: 'primary', icon: 'check', onClick: (e) => busy(e.currentTarget, async () => {
+      err.replaceChildren();
+      try { await onSubmit({ lines: rows.map((r) => ({ id: r.l.id, quantity: Number(r.qty.value), unitPrice: Number(r.price.value) })), text: text.value.trim() }); m.close(); } catch (ex) { err.replaceChildren(formError(ex.message)); }
+    }) })] });
+  return m;
+}
+
 /** Dialog für Gegenangebote / Angebote: Menge (optional) + Preis pro Einheit + Text. */
 export function priceDialog({ title, item, quantity, unitPrice, askQuantity = true, maxQuantity, submitLabel = 'Senden', onSubmit }) {
   const err = h('div');
   const qty = input({ type: 'number', min: 1, max: maxQuantity, value: quantity ?? '', inputmode: 'numeric' });
-  const price = input({ type: 'number', min: 1, value: unitPrice ?? '', inputmode: 'numeric' });
+  const price = input({ type: 'number', min: 0.01, step: '0.01', value: unitPrice ?? '', inputmode: 'decimal' });
   const text = h('textarea', { class: 'textarea', maxLength: 500, placeholder: 'Nachricht (optional)' });
   const total = h('div', { class: 'total-line' });
   const upd = () => { const q = askQuantity ? Number(qty.value) : quantity; const p = Number(price.value); mount(total, 'Gesamt: ', h('b', null, q > 0 && p > 0 ? money(q * p) : '–')); };
@@ -97,12 +118,12 @@ export function openDealModal({ side, base, id, onChange }) {
 
     const summary = h('div', { class: 'deal-summary' },
       h('div', { class: 'ds-main' },
-        h('div', { class: 'ds-title' }, d.number && h('span', { class: 'member-no' }, d.number), d.item.name, ' ', catBadge(d.item.category)),
+        h('div', { class: 'ds-title' }, d.number && h('span', { class: 'member-no' }, d.number), d.itemLabel ?? d.item.name, ' ', d.lineCount > 1 ? null : catBadge(d.item.category)),
         h('div', { class: 'ds-sub' }, side === 'staff' ? `${d.partner.number ?? ''} · ${partnerName} · ` : '', side === 'staff' && levelBadge(d.partner.level), side === 'staff' && d.partner.level && ' · ', d.direction === 'sell' ? (side === 'staff' ? 'Unser Angebot an den Partner' : 'Angebot vom Team') : d.origin === 'wanted' ? 'Antwort auf Gesuch' : 'Angebot des Partners', ' · ', timeAgo(d.createdAt)),
         h('div', { class: 'chips', style: { marginTop: '8px' } }, dirBadge(d), dealBadge(d), turnBadge(d, side), side === 'staff' && d.warehouse && h('span', { class: 'badge no-dot b-mute', title: 'Quelle der Ware' }, `Lager: ${d.warehouse.name}`), d.assignee && h('span', { class: 'badge no-dot b-info' }, `${side === 'staff' ? 'Zuständig' : 'Ansprechpartner'}: ${d.assignee.displayName}`))),
       h('div', { class: 'ds-price' },
         h('div', { class: 'dp-total' }, money(d.total)),
-        h('div', { class: 'dp-sub' }, `${d.quantity.toLocaleString('de-DE')} ${d.item.unit} × ${money(d.unitPrice)}`),
+        h('div', { class: 'dp-sub' }, d.lineCount > 1 ? `${d.lineCount} Positionen` : `${d.quantity.toLocaleString('de-DE')} ${d.item.unit} × ${money(d.unitPrice)}`),
         d.suggestedPrice != null && h('div', { class: 'dp-sub', title: 'Automatischer Preisvorschlag aus der Preisspanne beim Eingang des Angebots' }, d.suggestedPrice === d.unitPrice && d.proposedBy === 'partner' && d.origin === 'offer' ? 'zum Vorschlagspreis' : `Vorschlag: ${money(d.suggestedPrice)}${d.suggestedPrice !== d.unitPrice ? ` (${d.unitPrice > d.suggestedPrice ? '+' : ''}${Math.round(((d.unitPrice - d.suggestedPrice) / d.suggestedPrice) * 100)} %)` : ''}`)));
 
     const handover = d.handover && h('div', { class: 'handover-card' },
@@ -113,7 +134,7 @@ export function openDealModal({ side, base, id, onChange }) {
       d.handover.payoutInfo && h('div', { class: 'hc-row' }, h('span', { class: 'muted' }, d.direction === 'sell' ? 'Zahlung' : 'Auszahlung'), h('span', null, d.handover.payoutInfo)),
       h('div', { class: 'hc-row' }, h('span', { class: 'muted' }, d.direction === 'sell' ? (side === 'partner' ? 'Du zahlst' : 'Zahlungseingang') : (side === 'partner' ? 'Du erhältst' : 'Auszahlungsbetrag')), h('b', null, money(d.total))));
 
-    mount(body, summary,
+    mount(body, summary, linesTable(d),
       myTurn && h('div', { style: { margin: '14px 0' } }, note(side === 'staff' ? 'Der Partner wartet auf unsere Antwort.' : 'Wir warten auf deine Antwort: annehmen, ablehnen oder ein Gegenangebot machen.', 'alert')),
       handover,
       h('div', { class: 'sep' }), timeline(events),
@@ -125,7 +146,8 @@ export function openDealModal({ side, base, id, onChange }) {
     // Aktionsleiste
     const bar = [];
     const prompt = (label, variant, action, title, askQty = true) => button(label, { variant, icon: action === 'accept' ? 'check' : action === 'counter' ? 'refresh' : 'x', onClick: () => {
-      if (action === 'accept') return confirmDialog({ title: 'Angebot annehmen?', message: `${d.quantity.toLocaleString('de-DE')} ${d.item.unit} ${d.item.name} für ${money(d.total)} (${money(d.unitPrice)} pro Einheit).${d.direction === 'sell' ? (side === 'staff' ? ' Die Ware wird automatisch aus dem Lager abgebucht.' : ' Die Ware wird dir bereitgestellt, du zahlst den Betrag.') : ''}`, confirmLabel: 'Annehmen', variant: 'ok' }).then((r) => r && act('accept').then(() => toast('Angenommen.')).catch((ex) => toast(ex.message, 'err')));
+      if (action === 'accept') return confirmDialog({ title: 'Angebot annehmen?', message: `${d.lineCount > 1 ? `${d.lineCount} Positionen (${d.lines.map((l) => `${l.quantity.toLocaleString('de-DE')} ${l.item.unit} ${l.item.name}`).join(', ')}) für ${money(d.total)}.` : `${d.quantity.toLocaleString('de-DE')} ${d.item.unit} ${d.item.name} für ${money(d.total)} (${money(d.unitPrice)} pro Einheit).`}${d.direction === 'sell' ? (side === 'staff' ? ' Die Ware wird automatisch aus dem Lager abgebucht.' : ' Die Ware wird dir bereitgestellt, du zahlst den Betrag.') : ''}`, confirmLabel: 'Annehmen', variant: 'ok' }).then((r) => r && act('accept').then(() => toast('Angenommen.')).catch((ex) => toast(ex.message, 'err')));
+      if (action === 'counter' && d.lineCount > 1) return linesDialog({ title: 'Gegenangebot', lines: d.lines, submitLabel: 'Gegenangebot senden', onSubmit: async (v) => { await act('counter', v); toast('Gegenangebot gesendet.'); } });
       if (action === 'counter') return priceDialog({ title: 'Gegenangebot', item: `${d.item.name} · aktuell ${money(d.unitPrice)} × ${d.quantity.toLocaleString('de-DE')}`, quantity: d.quantity, unitPrice: d.unitPrice, askQuantity: true, submitLabel: 'Gegenangebot senden',
         onSubmit: async (v) => { await act('counter', v); toast('Gegenangebot gesendet.'); } });
       return confirmDialog({ title, message: 'Dies kann nicht rückgängig gemacht werden.', confirmLabel: label, withReason: true }).then((r) => r && act(action, { text: r.reason }).catch((ex) => toast(ex.message, 'err')));
@@ -157,7 +179,7 @@ export function openDealModal({ side, base, id, onChange }) {
     const sel = select([{ value: '', label: '— nicht einlagern —' }, ...whs.map((w) => ({ value: w.id, label: `${w.name}${w.capacity != null ? ` (frei: ${Math.max(0, w.capacity - w.used).toLocaleString('de-DE')})` : ''}` }))], whs.length === 1 ? whs[0].id : '');
     const dm = openModal({
       title: 'Ware eingegangen',
-      body: h('div', null, err, note(`${d.quantity.toLocaleString('de-DE')} ${d.item.unit} ${d.item.name} sind eingegangen. Wähle ein Lager, um sie direkt einzubuchen.`, 'info'), h('div', { style: { height: '12px' } }),
+      body: h('div', null, err, note(`${d.lineCount > 1 ? d.lines.map((l) => `${l.quantity.toLocaleString('de-DE')} ${l.item.unit} ${l.item.name}`).join(', ') + ' sind' : `${d.quantity.toLocaleString('de-DE')} ${d.item.unit} ${d.item.name} sind`} eingegangen. Wähle ein Lager, um sie direkt einzubuchen.`, 'info'), h('div', { style: { height: '12px' } }),
         field('Einlagern in', sel, { help: whs.length ? '' : 'Du hast kein Lager mit Buchungsrecht – der Wareneingang wird ohne Einlagerung erfasst.' })),
       footer: [button('Abbrechen', { onClick: () => dm.close() }), button('Wareneingang bestätigen', { variant: 'primary', icon: 'check', onClick: (e) => busy(e.currentTarget, async () => {
         try { await act('advance', { to: 'delivered', warehouseId: sel.value ? Number(sel.value) : undefined }); dm.close(); toast(sel.value ? 'Eingegangen und eingelagert.' : 'Wareneingang erfasst.'); }

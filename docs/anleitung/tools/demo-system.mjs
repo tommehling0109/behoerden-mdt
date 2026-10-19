@@ -12,7 +12,7 @@ class C { cookie = ''; async call(m, p, b) { const r = await fetch(base + p, { m
 
 let srv = start(); await sleep(2500);
 const admin = new C();
-let r = await admin.call('POST', '/api/setup', { systemName: "MDT", displayName: 'Admin', username: 'admin', password: 'passwort123' });
+let r = await admin.call('POST', '/api/setup', { systemName: 'MDT', displayName: 'Admin', username: 'admin', password: 'passwort123' });
 console.log('setup', r.status);
 srv.kill(); await sleep(800);
 const seed = spawnSync('node', ['--disable-warning=ExperimentalWarning', 'scripts/seed-demo.js'], { cwd: ROOT, env, encoding: 'utf8' });

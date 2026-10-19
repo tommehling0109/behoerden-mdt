@@ -11,7 +11,15 @@
 - Namen von Mitgliedern sieht man nur bei sich selbst, als Superadmin und bei Mitgliedern **unterhalb** der eigenen Hierarchie (übergeordneter Rang / Vorgesetzten-Kette); sonst nur die Personalnummer.
 - Statistik: `stats.view` öffnet die App, jeder Abschnitt erscheint zusätzlich nur mit dem Ansichtsrecht des jeweiligen Bereichs.
 
-## Rechte (89)
+## Rechte (99)
+
+### activity
+
+| Recht | Bedeutung |
+|---|---|
+| `activity.absence` | Aktivität: sich selbst für einen Zeitraum abmelden (Urlaub, Pause) und die eigene Aktivität sehen |
+| `activity.manage` | Aktivität: Abmeldungen für andere Mitglieder eintragen und beenden |
+| `activity.view` | Aktivität: Übersicht über alle Mitglieder (zuletzt aktiv, aktive Tage, Abmeldungen) |
 
 ### audit
 
@@ -120,7 +128,7 @@
 
 | Recht | Bedeutung |
 |---|---|
-| `map.edit` | Karte: Waypoints setzen, bearbeiten und löschen |
+| `map.edit` | Karte: Waypoints und Zonen (eingezeichnete Bereiche) setzen, bearbeiten und löschen |
 | `map.view` | Karte öffnen und Waypoints ansehen |
 
 ### market
@@ -133,6 +141,13 @@
 | `market.trade` | Börse: als Mitglied wie ein externer Partner handeln (nur wenn vom Admin erlaubt) |
 | `market.view` | Börse: Geschäfte, Gesuche und Katalog ansehen |
 | `market.wanted.manage` | Börse: Gesuche („Wir suchen“) verwalten |
+
+### onboarding
+
+| Recht | Bedeutung |
+|---|---|
+| `onboarding.check` | Einarbeitung: Fortschritt aller neuen Mitglieder sehen, Schritte bestätigen, Einarbeitung starten und beenden |
+| `onboarding.manage` | Einarbeitung: die Schritte der Checkliste anlegen, ändern und ordnen |
 
 ### org
 
@@ -170,6 +185,15 @@
 |---|---|
 | `roles.manage` | Rollen erstellen, bearbeiten und löschen |
 | `roles.view` | Rollen ansehen |
+
+### schedule
+
+| Recht | Bedeutung |
+|---|---|
+| `schedule.create` | Termine & Aufträge: Termine anlegen und eigene Termine ändern |
+| `schedule.manage` | Termine & Aufträge: alle Termine und Aufträge sehen, ändern und löschen |
+| `schedule.tasks.assign` | Termine & Aufträge: Aufträge an Mitglieder vergeben und eigene Aufträge ändern |
+| `schedule.view` | Termine & Aufträge: Kalender sehen, auf Termine zu-/absagen, eigene Aufträge bearbeiten |
 
 ### stats
 
@@ -237,10 +261,20 @@
 | `warehouse.view` | Lager ansehen (Standorte, Größe, Bestand) |
 | `warehouse.view_access` | Lager: Zugangsinformationen sehen |
 
+### watchlist
+
+| Recht | Bedeutung |
+|---|---|
+| `users.watchlist` | Watchlist: alle beobachteten Personen sehen (Führung) – Eintragen/Entfernen mit „Benutzer bearbeiten“ |
+
 ## Routen und benötigte Rechte (Mitarbeiter)
 
 | Methode | Pfad | Recht (eines davon) |
 |---|---|---|
+| GET | `/api/activity/me` | `activity.absence` |
+| GET | `/api/activity/overview` | `activity.view` |
+| POST | `/api/activity/absences` | `activity.absence` |
+| DELETE | `/api/activity/absences/:id` | `activity.absence` |
 | GET | `/api/audit/export` | `audit.export` |
 | GET | `/api/audit` | `audit.view` |
 | POST | `/api/auth/login` | *öffentlich* |
@@ -376,6 +410,10 @@
 | POST | `/api/map/points` | `map.edit` |
 | PATCH | `/api/map/points/:id` | `map.edit` |
 | DELETE | `/api/map/points/:id` | `map.edit` |
+| GET | `/api/map/zones` | `map.view` |
+| POST | `/api/map/zones` | `map.edit` |
+| PATCH | `/api/map/zones/:id` | `map.edit` |
+| DELETE | `/api/map/zones/:id` | `map.edit` |
 | GET | `/api/map/vehicles` | `map.view` |
 | GET | `/api/market/summary` | `market.view` |
 | GET | `/api/market/deals` | `market.view` |
@@ -392,6 +430,17 @@
 | POST | `/api/market/wanted` | `market.wanted.manage` |
 | PATCH | `/api/market/wanted/:id` | `market.wanted.manage` |
 | DELETE | `/api/market/wanted/:id` | `market.wanted.manage` |
+| GET | `/api/onboarding/me` | *angemeldet (eigene Daten)* |
+| POST | `/api/onboarding/me/steps/:stepId` | *angemeldet (eigene Daten)* |
+| GET | `/api/onboarding` | `onboarding.check` \| `onboarding.manage` |
+| POST | `/api/onboarding/:userId/steps/:stepId` | `onboarding.check` |
+| POST | `/api/onboarding/:userId/start` | `onboarding.check` |
+| POST | `/api/onboarding/:userId/finish` | `onboarding.check` |
+| DELETE | `/api/onboarding/:userId` | `onboarding.check` |
+| POST | `/api/onboarding/steps` | `onboarding.manage` |
+| PATCH | `/api/onboarding/steps/:id` | `onboarding.manage` |
+| POST | `/api/onboarding/steps/:id/move` | `onboarding.manage` |
+| DELETE | `/api/onboarding/steps/:id` | `onboarding.manage` |
 | GET | `/api/org` | `org.view` \| `users.view` |
 | POST | `/api/ranks` | `org.manage` |
 | PATCH | `/api/ranks/:id` | `org.manage` |
@@ -402,6 +451,7 @@
 | DELETE | `/api/departments/:id` | `org.manage` |
 | GET | `/api/partners` | `partners.view` |
 | POST | `/api/partners` | `partners.manage` |
+| PUT | `/api/partners/:id/rating` | `partners.manage` |
 | PATCH | `/api/partners/:id` | `partners.manage` |
 | POST | `/api/partners/:id/code` | `partners.manage` |
 | POST | `/api/partners/:id/link` | `partners.manage` |
@@ -426,10 +476,26 @@
 | GET | `/api/notifications` | *angemeldet (eigene Daten)* |
 | POST | `/api/notifications/read` | *angemeldet (eigene Daten)* |
 | POST | `/api/notifications/delete` | *angemeldet (eigene Daten)* |
+| GET | `/api/report` | `stats.view` |
+| GET | `/api/report/export.pdf` | `stats.view` |
 | GET | `/api/roles` | `roles.view` \| `users.view` |
 | POST | `/api/roles` | `roles.manage` |
 | PATCH | `/api/roles/:id` | `roles.manage` |
 | DELETE | `/api/roles/:id` | `roles.manage` |
+| GET | `/api/schedule/options` | `schedule.view` |
+| GET | `/api/schedule/summary` | `schedule.view` |
+| GET | `/api/schedule/events` | `schedule.view` |
+| GET | `/api/schedule/events/:id` | `schedule.view` |
+| POST | `/api/schedule/events` | `schedule.create` |
+| PATCH | `/api/schedule/events/:id` | `schedule.view` |
+| DELETE | `/api/schedule/events/:id` | `schedule.view` |
+| POST | `/api/schedule/events/:id/rsvp` | `schedule.view` |
+| GET | `/api/schedule/tasks` | `schedule.view` |
+| GET | `/api/schedule/tasks/:id` | `schedule.view` |
+| POST | `/api/schedule/tasks` | `schedule.tasks.assign` |
+| PATCH | `/api/schedule/tasks/:id` | `schedule.view` |
+| POST | `/api/schedule/tasks/:id/state` | `schedule.view` |
+| DELETE | `/api/schedule/tasks/:id` | `schedule.view` |
 | GET | `/api/stats` | `stats.view` |
 | GET | `/api/bootstrap` | *öffentlich* |
 | GET | `/api/admin/update` | `config.view` |
@@ -499,6 +565,11 @@
 | POST | `/api/warehouse/items` | `warehouse.items` |
 | PATCH | `/api/warehouse/items/:id` | `warehouse.items` |
 | DELETE | `/api/warehouse/items/:id` | `warehouse.items` |
+| GET | `/api/watchlist` | `users.view` |
+| GET | `/api/watchlist/options` | `users.edit` |
+| POST | `/api/watchlist` | `users.edit` |
+| PATCH | `/api/watchlist/:id` | `users.edit` |
+| DELETE | `/api/watchlist/:id` | `users.edit` |
 
 ## Externe Zugänge (Partner-Portal) und Firmenportal
 

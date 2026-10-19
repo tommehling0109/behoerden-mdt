@@ -16,7 +16,7 @@ const fillBar = (used, cap) => {
 export default async function render(container, ctx) {
   let opts = await api.get('/api/warehouse/options');
   const canManage = opts.canManage, canItems = opts.canItems, canPrices = opts.canPrices;
-  const money = (v) => (v == null ? '–' : `${nf(v)} ${opts.currency}`);
+  const money = (v) => (v == null ? '–' : `${Number(v).toLocaleString('de-DE', { maximumFractionDigits: 2 })} ${opts.currency}`);
   let tab = 'warehouses';
   const f = { q: '' };
   const tabHost = h('div', { style: { marginBottom: '16px' } });
@@ -278,7 +278,7 @@ export default async function render(container, ctx) {
     const unit = input({ value: i?.unit ?? 'Stück', maxLength: 20 });
     const space = input({ type: 'number', min: 1, value: i?.space ?? 1 }), stack = input({ type: 'number', min: 1, value: i?.stackSize ?? 1 });
     const target = input({ type: 'number', min: 0, value: i?.targetStock ?? '', placeholder: 'optional' });
-    const lo = input({ type: 'number', min: 0, value: i?.minPrice ?? '', placeholder: 'Mindestpreis' }), hi = input({ type: 'number', min: 0, value: i?.maxPrice ?? '', placeholder: 'Höchstpreis' });
+    const lo = input({ type: 'number', min: 0, step: '0.01', value: i?.minPrice ?? '', placeholder: 'Mindestpreis' }), hi = input({ type: 'number', min: 0, step: '0.01', value: i?.maxPrice ?? '', placeholder: 'Höchstpreis' });
     const desc = input({ value: i?.description ?? '', maxLength: 300 });
     const active = i && h('input', { type: 'checkbox', checked: i.isActive });
     const preview = h('div', { class: 'help' });

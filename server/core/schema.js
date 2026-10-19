@@ -1053,4 +1053,153 @@ export const SCHEMA_MIGRATIONS = [
     tour_done_at TEXT
   );
   `,
+  // 34: Termine & Auftraege (Kalender, Beteiligte, Erinnerungen, Auftraege mit Beauftragten)
+  `
+  CREATE TABLE cal_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT NOT NULL,
+    kind_id     INTEGER,
+    description TEXT NOT NULL DEFAULT '',
+    location    TEXT NOT NULL DEFAULT '',
+    starts_at   TEXT NOT NULL,
+    ends_at     TEXT,
+    all_day     INTEGER NOT NULL DEFAULT 0,
+    visibility  TEXT NOT NULL DEFAULT 'team',
+    status      TEXT NOT NULL DEFAULT 'planned',
+    reminders   TEXT NOT NULL DEFAULT '[]',
+    created_by  INTEGER,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+  CREATE INDEX idx_cal_events_start ON cal_events(starts_at);
+  CREATE TABLE cal_participants (
+    event_id INTEGER NOT NULL REFERENCES cal_events(id) ON DELETE CASCADE,
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rsvp     TEXT NOT NULL DEFAULT 'pending',
+    PRIMARY KEY (event_id, user_id)
+  );
+  CREATE TABLE cal_tasks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    priority    TEXT NOT NULL DEFAULT 'normal',
+    status      TEXT NOT NULL DEFAULT 'open',
+    due_at      TEXT,
+    event_id    INTEGER REFERENCES cal_events(id) ON DELETE SET NULL,
+    created_by  INTEGER,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    done_at     TEXT
+  );
+  CREATE INDEX idx_cal_tasks_due ON cal_tasks(due_at);
+  CREATE TABLE cal_task_assignees (
+    task_id    INTEGER NOT NULL REFERENCES cal_tasks(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    state      TEXT NOT NULL DEFAULT 'open',
+    note       TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (task_id, user_id)
+  );
+  CREATE TABLE cal_reminder_log (
+    kind    TEXT NOT NULL,
+    ref_id  INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    off     INTEGER NOT NULL,
+    sent_at TEXT NOT NULL,
+    PRIMARY KEY (kind, ref_id, user_id, off)
+  );
+  `,
+  // 35: Karte – frei eingezeichnete Bereiche/Zonen (Polygone in Spielkoordinaten)
+  `
+  CREATE TABLE map_zones (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    kind_id     INTEGER REFERENCES lookups(id) ON DELETE SET NULL,
+    color       TEXT,
+    opacity     REAL NOT NULL DEFAULT 0.25,
+    points      TEXT NOT NULL,
+    visibility  TEXT NOT NULL DEFAULT 'all' CHECK (visibility IN ('all','editors')),
+    created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+  `,
+  // 36: Boerse – mehrere Items (Positionen) pro Geschaeft; die Spalten item_id/quantity/unit_price am Geschaeft spiegeln die erste Position
+  `
+  CREATE TABLE market_deal_lines (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    deal_id         INTEGER NOT NULL REFERENCES market_deals(id) ON DELETE CASCADE,
+    pos             INTEGER NOT NULL DEFAULT 0,
+    item_id         INTEGER NOT NULL REFERENCES market_items(id),
+    other_name      TEXT,
+    quantity        INTEGER NOT NULL,
+    unit_price      INTEGER NOT NULL,
+    suggested_price INTEGER
+  );
+  CREATE INDEX idx_mdl_deal ON market_deal_lines(deal_id);
+  CREATE INDEX idx_mdl_item ON market_deal_lines(item_id);
+  INSERT INTO market_deal_lines (deal_id,pos,item_id,other_name,quantity,unit_price,suggested_price)
+    SELECT id, 0, item_id, other_name, quantity, unit_price, suggested_price FROM market_deals;
+  `,
+  // 37: Watchlist (beobachtete Benutzer, z. B. Ex-Mitglieder) mit beauftragten Beobachtern
+  `
+  CREATE TABLE user_watch (
+    user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    reason     TEXT NOT NULL,
+    added_by   INTEGER,
+    added_at   TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE user_watch_observers (
+    user_id     INTEGER NOT NULL REFERENCES user_watch(user_id) ON DELETE CASCADE,
+    observer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, observer_id)
+  );
+  `,
+  // 38: Partner-Bewertung (Sterne + Notiz), Aktivitaet und Abmeldungen der Mitglieder, Einarbeitungs-Checkliste
+  `
+  ALTER TABLE partners ADD COLUMN rating INTEGER;
+  ALTER TABLE partners ADD COLUMN rating_note TEXT NOT NULL DEFAULT '';
+  ALTER TABLE users ADD COLUMN last_active_at TEXT;
+  UPDATE users SET last_active_at = last_login_at WHERE status = 'active' AND last_login_at IS NOT NULL;
+  CREATE TABLE user_activity (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day     TEXT NOT NULL,
+    PRIMARY KEY (user_id, day)
+  );
+  CREATE TABLE user_absences (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    from_date  TEXT NOT NULL,
+    to_date    TEXT NOT NULL,
+    reason     TEXT NOT NULL DEFAULT '',
+    created_by INTEGER,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_absences_user ON user_absences(user_id, to_date);
+  CREATE TABLE onboarding_steps (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    confirm_by  TEXT NOT NULL DEFAULT 'leader' CHECK (confirm_by IN ('leader','self')),
+    is_active   INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+  CREATE TABLE user_onboarding (
+    user_id      INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    started_at   TEXT NOT NULL,
+    completed_at TEXT,
+    skipped      INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE onboarding_progress (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    step_id INTEGER NOT NULL REFERENCES onboarding_steps(id) ON DELETE CASCADE,
+    done_by INTEGER,
+    done_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, step_id)
+  );
+  `,
 ];

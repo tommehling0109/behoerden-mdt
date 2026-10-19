@@ -78,10 +78,18 @@ export function addXp(partnerId, delta, { kind, refType = null, refId = null, no
 
 // ── Hooks: abgeschlossene Geschäfte ──
 export function awardForDeal(dealId) {
-  const d = get('SELECT d.id, d.partner_id, d.direction, d.quantity, d.unit_price, d.item_id, d.deal_number, i.is_other FROM market_deals d JOIN market_items i ON i.id = d.item_id WHERE d.id = ?', dealId);
+  const d = get('SELECT d.id, d.partner_id, d.direction, d.deal_number FROM market_deals d WHERE d.id = ?', dealId);
   if (!d) return null;
   const type = d.direction === 'sell' ? 'sell' : 'buy';
-  const xp = xpFor(type, d.quantity * d.unit_price, d.is_other ? null : d.item_id);
+  const lines = all('SELECT l.item_id, l.quantity, l.unit_price, i.is_other FROM market_deal_lines l JOIN market_items i ON i.id = l.item_id WHERE l.deal_id = ? ORDER BY l.pos, l.id', dealId);
+  if (!lines.length) lines.push(...all('SELECT d.item_id, d.quantity, d.unit_price, i.is_other FROM market_deals d JOIN market_items i ON i.id = d.item_id WHERE d.id = ?', dealId)); // Geschäft ohne Positionszeilen (Altbestand): Kopfdaten
+  const total = Math.round(lines.reduce((a, l) => a + l.quantity * l.unit_price, 0) * 100) / 100;
+  // Automatisch: einmal nach dem Gesamtwert. Fest: Item-XP je Position, Positionen ohne eigene XP zusammen einmal der Standardwert.
+  let xp;
+  if ((getConfig(`level.mode.${type}`) ?? 'auto') === 'fixed') {
+    xp = 0; let usedDefault = false;
+    for (const l of lines) { const own = l.is_other ? null : get('SELECT xp FROM market_items WHERE id = ?', l.item_id)?.xp; if (own != null) xp += Math.max(0, Math.round(own)); else if (!usedDefault) { usedDefault = true; xp += xpFor(type, 0, null); } }
+  } else xp = xpFor(type, total, null);
   return addXp(d.partner_id, xp, { kind: 'deal', refType: 'deal', refId: d.id, note: `Geschäft ${d.deal_number ?? d.id} abgeschlossen` });
 }
 export function awardForLoan(loanId) {

@@ -126,11 +126,29 @@ export default async function render(container, ctx) {
           h('h3', null, p.name, ' ', p.status === 'active' ? badge('Aktiv', 'b-ok') : badge('Deaktiviert', 'b-mute'), p.locked && badge('Gesperrt', 'b-err'), ' ', levelBadge(p.level)),
           h('div', { class: 'desc' }, badge(p.typeLabel ?? '', p.type === 'supplier' ? 'b-warn' : 'b-info', false), ' ', p.note || h('span', { class: 'muted' }, 'Keine Notiz')),
           h('div', { class: 'chips' }, p.apps.length ? p.apps.map((a) => badge((data.apps.find((x) => x.id === a)?.label ?? a), 'b-info', false)) : h('span', { class: 'muted' }, 'Keine Apps freigeschaltet')),
-          h('div', { class: 'meta' }, h('span', null, p.lastLoginAt ? `Zuletzt: ${timeAgo(p.lastLoginAt)}` : 'Noch nie angemeldet'), h('span', null, `${p.dealCount} Geschäft${p.dealCount === 1 ? '' : 'e'}`)));
+          h('div', { class: 'meta' }, p.rating.stars && h('span', { title: 'Einschätzung der Führung', style: { color: '#fbbf24' } }, '★'.repeat(p.rating.stars)), p.rating.stats.completed + p.rating.stats.cancelled + p.rating.stats.withdrawn >= 3 && h('span', { title: `Abschlussquote ${p.rating.stats.completionRate} %` }, badge(p.rating.auto.label, `b-${p.rating.auto.tone}`, false)), h('span', null, p.lastLoginAt ? `Zuletzt: ${timeAgo(p.lastLoginAt)}` : 'Noch nie angemeldet'), h('span', null, `${p.dealCount} Geschäft${p.dealCount === 1 ? '' : 'e'}`)));
         c.addEventListener('click', () => edit(p));
         c.addEventListener('keydown', (e) => { if (e.key === 'Enter') edit(p); });
         return c;
       })));
+  }
+
+  /** Bewertung: automatische Kennzahlen aus den Börsen-Geschäften + Einschätzung der Führung (Sterne, interne Notiz). */
+  function ratingBox(p) {
+    const r = p.rating, s = r.stats; let stars = r.stars ?? 0;
+    const kv = (k, v) => h('div', null, h('div', { class: 'k' }, k), h('div', { class: 'v' }, v));
+    const nf = (n) => Number(n ?? 0).toLocaleString('de-DE', { maximumFractionDigits: 2 });
+    const noteEl = h('textarea', { class: 'textarea', rows: 2, maxLength: 500, placeholder: 'Interne Notiz zur Zuverlässigkeit (nur für das Team sichtbar)', disabled: !canManage }, r.note ?? '');
+    const starBox = h('div', { class: 'rate-stars' }), paint = () => mount(starBox, [1, 2, 3, 4, 5].map((n) => h('button', { type: 'button', class: n <= stars ? 'on' : '', disabled: !canManage, title: `${n} Stern${n === 1 ? '' : 'e'}`, onclick: () => { stars = stars === n ? 0 : n; paint(); } }, '★')));
+    paint();
+    return h('div', { class: 'rate-box' }, h('div', { class: 'label' }, 'Bewertung ', badge(r.auto.label, `b-${r.auto.tone}`, false)),
+      h('div', { class: 'rate-stats' }, kv('Abschlussquote', s.completionRate == null ? '–' : `${s.completionRate} %`), kv('Geschäfte', `${s.total} (${s.open} offen)`), kv('Abgeschlossen', s.completed),
+        kv('Storniert / zurückgezogen', `${s.cancelled} / ${s.withdrawn}`), kv('Umsatz abgeschlossen', nf(s.volume)), kv('Ø Dauer bis Abschluss', s.avgDays == null ? '–' : `${nf(s.avgDays)} Tage`),
+        kv('Letztes Geschäft', s.lastDealAt ? fmtDateTime(s.lastDealAt) : '–'), s.overdueInstallments > 0 && kv('Überfällige Kreditraten', s.overdueInstallments)),
+      h('div', { class: 'muted', style: { fontSize: '12px' } }, 'Die Quote zählt abgeschlossene gegen stornierte und zurückgezogene Geschäfte – Ablehnungen durch uns zählen nicht gegen den Partner. Ab 3 beendeten Geschäften gibt es eine Einstufung.'),
+      h('div', { class: 'row', style: { gap: '10px', alignItems: 'center' } }, h('span', { class: 'label', style: { margin: 0 } }, 'Einschätzung der Führung'), starBox),
+      noteEl,
+      canManage && h('div', null, button('Bewertung speichern', { size: 'sm', icon: 'check', onClick: async (e) => { try { await busy(e.currentTarget, () => api.put(`/api/partners/${p.id}/rating`, { stars: stars || null, note: noteEl.value })); toast('Bewertung gespeichert.'); load(); } catch (ex) { toast(ex.message, 'err'); } } })));
   }
 
   const appBoxes = (selected, locked) => data.apps.map((a) => [a, checkbox(h('span', null, a.label), selected.includes(a.id), { desc: a.description, locked })]);
@@ -284,6 +302,7 @@ export default async function render(container, ctx) {
         h('div', { class: 'label', style: { marginBottom: '6px' } }, 'Freigeschaltete Apps'), boxes.map(([, c]) => c),
         canManage && h('div', { style: { margin: '14px 0' } }, h('div', { class: 'sep' }), mkt.el),
         h('div', { style: { margin: '14px 0' } }, h('div', { class: 'sep' }), lvl.el),
+        h('div', { style: { margin: '14px 0' } }, h('div', { class: 'sep' }), ratingBox(p)),
         h('dl', { class: 'details-dl', style: { marginTop: '14px' } }, h('dt', null, 'Erstellt'), h('dd', null, fmtDateTime(p.createdAt)),
           h('dt', null, 'Letzte Anmeldung'), h('dd', null, p.lastLoginAt ? fmtDateTime(p.lastLoginAt) : 'noch nie'))),
       footer,

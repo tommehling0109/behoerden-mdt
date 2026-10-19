@@ -32,8 +32,8 @@ export function quote(itemId, quantity = 1) {
     const fill = Math.min(1, Math.max(0, (totalStock(itemId) + Math.max(0, quantity) / 2) / i.target_stock));
     price = hi - (hi - lo) * fill;
   } else price = (lo + hi) / 2;
-  const unitPrice = Math.round(price);
-  return { unitPrice, total: unitPrice * quantity };
+  const unitPrice = Math.round(price * 100) / 100;
+  return { unitPrice, total: Math.round(unitPrice * quantity * 100) / 100 };
 }
 
 /** Bucht Bestand (delta > 0 Einlagern, < 0 Auslagern). Läuft in der Transaktion des Aufrufers. Prüft Kapazität und Mindestbestand 0. */

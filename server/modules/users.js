@@ -2,8 +2,10 @@ import { all, get, run, tx, now } from '../core/db.js';
 import { bad, conflict, forbidden, notFound, str, intList, strList } from '../core/http.js';
 import { hashPassword, checkPassword, destroyUserSessions } from '../core/auth.js';
 import { loadAccess, permissionExists } from '../core/permissions.js';
+import { watchFor } from './watchlist.js';
 import { audit } from '../core/audit.js';
 import { assignMemberNumber } from '../core/members.js';
+import { startOnboarding } from './onboarding.js';
 import { memberLabel } from '../core/identity.js';
 import { purgeUserFiles } from '../core/purge.js';
 
@@ -143,14 +145,14 @@ export default {
       const counts = Object.fromEntries(all('SELECT status, COUNT(*) c FROM users GROUP BY status').map((x) => [x.status, x.c]));
       return {
         counts,
-        users: rows.map((u) => ({ ...listDto(u, ctx.user), roles: [...(u.is_superadmin ? [SUPERADMIN_ROLE] : []), ...roles.filter((x) => x.user_id === u.id).map(({ id, name, color }) => ({ id, name, color }))] })),
+        users: rows.map((u) => ({ ...listDto(u, ctx.user), watch: watchFor(ctx.user, u.id), roles: [...(u.is_superadmin ? [SUPERADMIN_ROLE] : []), ...roles.filter((x) => x.user_id === u.id).map(({ id, name, color }) => ({ id, name, color }))] })),
       };
     });
 
     r.get('/api/users/:id', { perm: 'users.view' }, (ctx) => {
       const d = detail(Number(ctx.params.id), ctx.user);
       if (!d) throw notFound('Benutzer nicht gefunden.');
-      return { user: d };
+      return { user: { ...d, watch: watchFor(ctx.user, d.id) } };
     });
 
     r.post('/api/users', { perm: 'users.create' }, (ctx) => {
@@ -184,6 +186,7 @@ export default {
         if (status === 'active') assignMemberNumber(uid);
         return uid;
       });
+      if (status === 'active') startOnboarding(id);
       audit(ctx, { action: 'user.created', module: 'users', targetType: 'user', targetId: id, targetLabel: memberLabel(get('SELECT id, member_number, status FROM users WHERE id = ?', id)), after: snapshot(id) });
       ctx.status = 201;
       return { user: detail(id, ctx.user) };
@@ -262,6 +265,7 @@ export default {
         if (roleIds) { assertCanAssign(ctx.user, roleIds, []); setRoles(id, roleIds); }
         if (status === 'active') assignMemberNumber(id); // erste Freischaltung ⇒ Mitglied ⇒ Nummer (bleibt danach dauerhaft)
       });
+      if (status === 'active' && cur.status === 'pending') startOnboarding(id); // erste Freischaltung ⇒ Einarbeitung startet
       if (status === 'blocked' || status === 'rejected') destroyUserSessions(id);
       const action = { active: cur.status === 'pending' ? 'user.approved' : 'user.unblocked', blocked: 'user.blocked', rejected: 'user.rejected', pending: 'user.reset_pending' }[status];
       audit(ctx, { action, module: 'users', targetType: 'user', targetId: id, targetLabel: memberLabel(cur), before, after: { ...snapshot(id), reason: reason || undefined } });

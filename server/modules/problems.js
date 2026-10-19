@@ -2,7 +2,10 @@ import { all, get, now } from '../core/db.js';
 import { getConfig } from '../core/config.js';
 import { lookupEntries } from '../core/lookups.js';
 import { levelFor } from './warehouses.js';
+import { usedSpace } from '../core/stock.js';
+import { overdueTaskProblems } from './schedule.js';
 import { mayAccessCase } from './legalcases.js';
+import { inactiveProblems } from './activity.js';
 
 /**
  * Problemleiste (Desktop, rechts unter dem Schwarzen Brett): akute Probleme aus allen Bereichen. Die Liste wird bei jeder Abfrage frisch aus
@@ -14,6 +17,21 @@ const hoursAgo = (h) => new Date(Date.now() - h * 3600_000).toISOString();
 const num = (k, d) => { const v = Number(getConfig(k)); return Number.isFinite(v) && v >= 0 ? v : d; };
 const ago = (iso) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m < 60 ? `seit ${m} Min.` : m < 1440 ? `seit ${Math.round(m / 60)} Std.` : `seit ${Math.round(m / 1440)} Tag${Math.round(m / 1440) === 1 ? '' : 'en'}`; };
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+/** Lager: ab der Warnschwelle (Standard 75 %) ein Problem, ab der kritischen Schwelle (Standard 90 %) ein kritisches Problem – nur Lager mit festgelegter Kapazität. */
+function fillProblems(user) {
+  const warn = num('problems.warehouse_warn_percent', 75), crit = Math.max(warn, num('problems.warehouse_critical_percent', 90)), out = [];
+  if (!(warn > 0)) return out;
+  for (const w of all('SELECT * FROM warehouses WHERE is_active = 1 AND capacity IS NOT NULL AND capacity > 0')) {
+    if (!levelFor(user, w)) continue;
+    const used = usedSpace(w.id), exact = (used / w.capacity) * 100, pct = Math.round(exact);
+    if (exact < warn) continue;
+    const critical = exact >= crit;
+    out.push({ id: `wh:${w.id}:fill:${critical ? 'crit' : 'warn'}`, severity: critical ? 'critical' : 'warn', title: `${w.warehouse_number} · Lager ${critical ? 'fast voll' : 'füllt sich'} (${pct} %)`,
+      detail: `${w.name} · ${used.toLocaleString('de-DE')} / ${w.capacity.toLocaleString('de-DE')} Slots belegt`, since: get('SELECT MAX(created_at) t FROM warehouse_events WHERE warehouse_id = ?', w.id)?.t ?? w.updated_at, target: { app: 'warehouse' } });
+  }
+  return out;
+}
 
 const SOURCES = [
   { area: 'vehicles', label: 'Fahrzeuge', icon: 'car', perm: 'vehicles.view', list: () => {
@@ -39,8 +57,10 @@ const SOURCES = [
     for (const c of all('SELECT * FROM legal_cases WHERE lead_user_id IS NULL')) if (ok(c)) out.push({ id: `legal:lead:${c.id}`, severity: 'warn', title: `${c.case_number} · ${c.title}`, detail: 'Offene Akte ohne verantwortliche Person', since: c.created_at, target: { app: 'legal' } });
     return out;
   } },
-  { area: 'warehouse', label: 'Lager', icon: 'storage', perm: 'warehouse.view', list: (user) => all("SELECT * FROM warehouses WHERE is_active = 1 AND rent_enabled = 1 AND rent_due_date IS NOT NULL AND (rent_paid_date IS NULL OR rent_paid_date < rent_due_date)")
-    .filter((w) => levelFor(user, w)).map((w) => ({ id: `wh:${w.id}:rent`, severity: 'warn', title: `${w.warehouse_number} · Lagerkosten fällig`, detail: `${w.name}${w.rent_cents ? ` · ${(w.rent_cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 })} ${getConfig('market.currency') ?? '$'}` : ''} · noch nicht als bezahlt bestätigt`, since: `${w.rent_due_date}T00:00:00.000Z`, target: { app: 'warehouse' } })) },
+  { area: 'warehouse', label: 'Lager', icon: 'storage', perm: 'warehouse.view', list: (user) => [...fillProblems(user), ...all("SELECT * FROM warehouses WHERE is_active = 1 AND rent_enabled = 1 AND rent_due_date IS NOT NULL AND (rent_paid_date IS NULL OR rent_paid_date < rent_due_date)")
+    .filter((w) => levelFor(user, w)).map((w) => ({ id: `wh:${w.id}:rent`, severity: 'warn', title: `${w.warehouse_number} · Lagerkosten fällig`, detail: `${w.name}${w.rent_cents ? ` · ${(w.rent_cents / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 })} ${getConfig('market.currency') ?? '$'}` : ''} · noch nicht als bezahlt bestätigt`, since: `${w.rent_due_date}T00:00:00.000Z`, target: { app: 'warehouse' } }))] },
+  { area: 'activity', label: 'Mitglieder', icon: 'users', perm: 'activity.view', list: () => inactiveProblems() },
+  { area: 'schedule', label: 'Aufträge', icon: 'flag', perm: 'schedule.view', list: (user) => overdueTaskProblems(user) },
   { area: 'credit', label: 'Kredit', icon: 'bank', perm: 'credit.view', list: () => [
     ...all("SELECT i.id, i.seq, i.due_date, l.id loan_id, l.loan_number, p.partner_number FROM credit_installments i JOIN credit_loans l ON l.id = i.loan_id JOIN partners p ON p.id = l.partner_id WHERE l.status = 'active' AND i.status = 'open' AND i.due_date < ? ORDER BY i.due_date", today())
       .map((r) => ({ id: `inst:${r.id}`, severity: 'critical', title: `${r.loan_number} · Rate ${r.seq} überfällig`, detail: `${r.partner_number} · fällig war ${r.due_date.split('-').reverse().join('.')}`, since: `${r.due_date}T00:00:00.000Z`, target: { app: 'credit', loanId: r.loan_id } })),
@@ -72,6 +92,8 @@ export default {
   config: [
     { key: 'problems.market_hours', group: 'Probleme', label: 'Börse: Geschäft beim Team gilt als Problem nach (Stunden)', help: 'Ein Geschäft, das so lange auf eine Antwort des Teams wartet, erscheint in der Problemleiste.', type: 'number', default: 1, min: 0, max: 720 },
     { key: 'problems.legal_hours', group: 'Probleme', label: 'Rechtsfälle: Fristen/Termine zeigen ab (Stunden vorher)', help: 'Anstehende Fristen und Termine erscheinen so viele Stunden vorher; überfällige immer.', type: 'number', default: 24, min: 0, max: 720 },
+    { key: 'problems.warehouse_warn_percent', group: 'Probleme', label: 'Lager: Problem ab Füllstand (%)', help: 'Ein Lager mit festgelegter Kapazität erscheint als Problem, sobald es so voll ist. 0 = Lagerfüllstand nie melden.', type: 'number', default: 75, min: 0, max: 100 },
+    { key: 'problems.warehouse_critical_percent', group: 'Probleme', label: 'Lager: kritisches Problem ab Füllstand (%)', help: 'Ab diesem Füllstand wird das Problem kritisch (rot, blinkt). Mindestens so hoch wie die Schwelle für das normale Problem.', type: 'number', default: 90, min: 1, max: 100 },
     { key: 'problems.statement_hours', group: 'Probleme', label: 'Deckel: Abrechnung wartet auf Prüfung nach (Stunden)', type: 'number', default: 24, min: 0, max: 720 },
   ],
   routes(r) {

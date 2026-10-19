@@ -57,7 +57,14 @@ const posInt = (v, name, { min = 1, max = INT_MAX } = {}) => {
   if (!Number.isInteger(v) || v < min || v > max) throw bad(`${name}: ganze Zahl zwischen ${min} und ${max.toLocaleString('de-DE')} erforderlich.`);
   return v;
 };
-const optPrice = (v, name) => (v == null || v === '' ? null : posInt(v, name, { min: 0 }));
+const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+/** Preis mit bis zu zwei Nachkommastellen (Zahl oder Text mit Komma, z. B. "14,75"). */
+const price = (v, name, { min = 0.01, max = INT_MAX } = {}) => {
+  const n = typeof v === 'string' ? Number(v.trim().replace(',', '.')) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < min || n > max) throw bad(`${name}: Betrag zwischen ${min.toLocaleString('de-DE')} und ${max.toLocaleString('de-DE')} erforderlich (bis zu 2 Nachkommastellen).`);
+  return r2(n);
+};
+const optPrice = (v, name) => (v == null || v === '' ? null : price(v, name, { min: 0 }));
 
 // ── Katalog ──
 const ITEM_SQL = 'SELECT i.*, l.label cat_label, l.color cat_color FROM market_items i LEFT JOIN lookups l ON l.id = i.category_id';
@@ -76,12 +83,31 @@ const DEAL_SQL = `SELECT d.*, p.name partner_name, p.partner_number partner_numb
   LEFT JOIN lookups sl ON sl.list_key = 'market.deal_status' AND sl.key = d.status
   LEFT JOIN users u ON u.id = d.assignee_id LEFT JOIN lookups hp ON hp.id = d.handover_place_id`;
 
+/** Positionen (Items) eines Geschäfts. Die Spalten am Geschäft (item_id/quantity/unit_price) spiegeln die erste Position. */
+const LINE_SQL = `SELECT l.*, i.name item_name, i.unit item_unit, i.is_other item_is_other, ic.id cat_id, ic.label cat_label, ic.color cat_color
+  FROM market_deal_lines l JOIN market_items i ON i.id = l.item_id LEFT JOIN lookups ic ON ic.id = i.category_id`;
+const linesOf = (dealId) => all(`${LINE_SQL} WHERE l.deal_id = ? ORDER BY l.pos, l.id`, dealId);
+const lineName = (l) => (l.item_is_other && l.other_name ? `Sonstiges: ${l.other_name}` : l.item_name);
+const lineDto = (l) => ({
+  id: l.id, quantity: l.quantity, unitPrice: l.unit_price, total: r2(l.quantity * l.unit_price), suggestedPrice: l.suggested_price ?? null,
+  item: { id: l.item_id, name: lineName(l), isOther: !!l.item_is_other, unit: l.item_unit, category: l.cat_id ? { id: l.cat_id, label: l.cat_label, color: l.cat_color } : null },
+});
+/** Erste Position als Spiegel am Geschäft halten (Listen, Statistiken, Benachrichtigungen lesen sie). */
+const syncHeader = (dealId) => {
+  const f = get('SELECT item_id, quantity, unit_price, other_name FROM market_deal_lines WHERE deal_id = ? ORDER BY pos, id LIMIT 1', dealId);
+  if (f) run('UPDATE market_deals SET item_id = ?, quantity = ?, unit_price = ?, other_name = ? WHERE id = ?', f.item_id, f.quantity, f.unit_price, f.other_name, dealId);
+};
+const linesSummary = (lines) => lines.map((l) => `${lineName(l)}: ${l.quantity.toLocaleString('de-DE')} × ${l.unit_price.toLocaleString('de-DE')}`).join(' · ');
+const MAX_LINES = 25;
+
 const dealDto = (d, partnerView, viewerId = null) => {
   const hasHandover = d.handover_place_id || d.handover_info || d.payout_info;
+  const lines = linesOf(d.id).map(lineDto), multi = lines.length > 1;
   return {
     id: d.id, number: d.deal_number, origin: d.origin, direction: d.direction, warehouse: partnerView || !d.warehouse_id ? undefined : { id: d.warehouse_id, name: d.warehouse_name }, stockBooked: partnerView ? undefined : !!d.stock_booked,
     wantedId: d.wanted_id, status: d.status, statusLabel: (d.direction === 'sell' && SELL_LABELS[d.status]) || d.status_label || d.status, statusColor: d.status_color ?? '#94a3b8',
-    turn: d.turn, quantity: d.quantity, unitPrice: d.unit_price, suggestedPrice: d.suggested_price ?? null, total: d.quantity * d.unit_price, proposedBy: d.proposed_by, note: d.note,
+    turn: d.turn, quantity: d.quantity, unitPrice: d.unit_price, suggestedPrice: d.suggested_price ?? null, total: r2(lines.length ? lines.reduce((a, l) => a + l.total, 0) : d.quantity * d.unit_price), proposedBy: d.proposed_by, note: d.note,
+    lines, lineCount: lines.length || 1, itemLabel: multi ? `${lines[0].item.name} + ${lines.length - 1} weitere` : undefined,
     item: { id: d.item_id, name: d.item_is_other && d.other_name ? `Sonstiges: ${d.other_name}` : d.item_name, isOther: !!d.item_is_other, unit: d.item_unit, category: d.cat_id ? { id: d.cat_id, label: d.cat_label, color: d.cat_color } : null },
     // Partner sehen weder den Namen der Gegenseite noch interne Zuständigkeiten – nur die MDT-Nummer des Geschäfts
     partner: partnerView ? undefined : { id: d.partner_id, name: d.partner_name, number: d.partner_number, level: levelBrief(d.partner_id), isMember: !!get('SELECT user_id FROM partners WHERE id = ?', d.partner_id)?.user_id },
@@ -140,23 +166,32 @@ function applyAction(dealId, actor, action, b) {
         if (d.direction === 'sell') {
           // Verkauf an den Partner: Ware wird beim Annehmen automatisch aus dem Lager abgebucht (nachvollziehbar im Lager-Verlauf)
           if (!d.warehouse_id) throw conflict('Das Lager für dieses Angebot existiert nicht mehr.');
-          try { bookStock({ warehouseId: d.warehouse_id, itemId: d.item_id, delta: -d.quantity, kind: 'deal_out', userId: side === 'staff' ? actor.id : null, note: `Geschäft ${d.deal_number}`, dealId }); }
+          const ls = linesOf(dealId);
+          try { for (const l of ls) bookStock({ warehouseId: d.warehouse_id, itemId: l.item_id, delta: -l.quantity, kind: 'deal_out', userId: side === 'staff' ? actor.id : null, note: `Geschäft ${d.deal_number}`, dealId }); }
           catch (e) { if (side === 'partner') throw conflict('Das Angebot lässt sich gerade nicht annehmen: Die Ware ist nicht mehr in dieser Menge verfügbar. Bitte melde dich beim Team.'); throw e; }
           touch(dealId, { stock_booked: 1 });
-          sold = get('SELECT w.name wname, i.name iname, i.unit u FROM warehouses w, market_items i WHERE w.id = ? AND i.id = ?', d.warehouse_id, d.item_id);
+          sold = { wname: get('SELECT name FROM warehouses WHERE id = ?', d.warehouse_id)?.name, text: ls.map((l) => `${l.quantity.toLocaleString('de-DE')} ${l.item_unit} ${lineName(l)}`).join(', ') };
         }
         touch(dealId, { status: 'accepted', turn: null });
-        ev(dealId, actor, 'accept', { quantity: d.quantity, unitPrice: d.unit_price, text });
-        if (sold) addEvent(dealId, { type: 'system' }, 'stock', { text: `Ausgebucht: ${d.quantity.toLocaleString('de-DE')} ${sold.u} ${sold.iname} aus ${sold.wname}`, internal: true });
+        { const ls = linesOf(dealId); ev(dealId, actor, 'accept', ls.length > 1 ? { text: [`Positionen: ${linesSummary(ls)} · Summe ${dealTotalOf(dealId).toLocaleString('de-DE')}`, text].filter(Boolean).join('\n') } : { quantity: d.quantity, unitPrice: d.unit_price, text }); }
+        if (sold) addEvent(dealId, { type: 'system' }, 'stock', { text: `Ausgebucht: ${sold.text} aus ${sold.wname}`, internal: true });
         expectDealPayment(dealId); // Geldbewegung für das Finanzsystem vormerken
         break;
       }
       case 'counter': {
         needOpen(); needTurn();
-        const quantity = b.quantity === undefined ? d.quantity : posInt(b.quantity, 'Menge');
-        const unitPrice = posInt(b.unitPrice, 'Preis pro Einheit');
-        touch(dealId, { status: 'negotiating', turn: other, proposed_by: side, quantity, unit_price: unitPrice });
-        ev(dealId, actor, 'counter', { quantity, unitPrice, text });
+        const cur = linesOf(dealId);
+        if (Array.isArray(b.lines) && b.lines.length) { // mehrere Positionen: für jede Position Menge und Preis
+          if (b.lines.length !== cur.length) throw bad('Bitte gib für alle Positionen Menge und Preis an.');
+          const byId = new Map(cur.map((l) => [l.id, l]));
+          for (const x of b.lines) { const l = byId.get(x?.id); if (!l) throw bad('Unbekannte Position.'); byId.delete(l.id); run('UPDATE market_deal_lines SET quantity = ?, unit_price = ? WHERE id = ?', posInt(x.quantity, `Menge (${lineName(l)})`), price(x.unitPrice, `Preis pro Einheit (${lineName(l)})`), l.id); }
+        } else {
+          if (cur.length > 1) throw bad('Dieses Geschäft hat mehrere Positionen – bitte für jede Position Menge und Preis angeben.');
+          run('UPDATE market_deal_lines SET quantity = ?, unit_price = ? WHERE id = ?', b.quantity === undefined ? cur[0].quantity : posInt(b.quantity, 'Menge'), price(b.unitPrice, 'Preis pro Einheit'), cur[0].id);
+        }
+        syncHeader(dealId);
+        touch(dealId, { status: 'negotiating', turn: other, proposed_by: side });
+        { const ls = linesOf(dealId); ev(dealId, actor, 'counter', ls.length > 1 ? { text: [`Positionen: ${linesSummary(ls)} · Summe ${dealTotalOf(dealId).toLocaleString('de-DE')}`, text].filter(Boolean).join('\n') } : { quantity: ls[0].quantity, unitPrice: ls[0].unit_price, text }); }
         break;
       }
       case 'reject': {
@@ -200,11 +235,14 @@ function applyAction(dealId, actor, action, b) {
         if (b.to !== undefined && b.to !== to) throw bad('Ungültiger Zielzustand.');
         touch(dealId, { status: to, ...(to === 'completed' ? { closed_at: now() } : {}) });
         let stored = '';
-        if (to === 'delivered' && d.direction === 'buy' && b.warehouseId != null && b.warehouseId !== '' && !get('SELECT is_other FROM market_items WHERE id = ?', d.item_id)?.is_other) {
-          const wh = get('SELECT id, name FROM warehouses WHERE id = ?', b.warehouseId);
-          if (!wh) throw bad('Unbekanntes Lager.');
-          bookStock({ warehouseId: wh.id, itemId: d.item_id, delta: d.quantity, kind: 'deal', userId: actor.id, note: `Geschäft ${d.deal_number}`, dealId });
-          stored = ` – eingelagert in ${wh.name}`;
+        if (to === 'delivered' && d.direction === 'buy' && b.warehouseId != null && b.warehouseId !== '') {
+          const stock = linesOf(dealId).filter((l) => !l.item_is_other); // „Sonstiges“ hat keinen Katalog-Artikel und wird nicht eingelagert
+          if (stock.length) {
+            const wh = get('SELECT id, name FROM warehouses WHERE id = ?', b.warehouseId);
+            if (!wh) throw bad('Unbekanntes Lager.');
+            for (const l of stock) bookStock({ warehouseId: wh.id, itemId: l.item_id, delta: l.quantity, kind: 'deal', userId: actor.id, note: `Geschäft ${d.deal_number}`, dealId });
+            stored = ` – eingelagert in ${wh.name}`;
+          }
         }
         if (to === 'completed') { settleDeal(dealId); awardForDeal(dealId); }
         ev(dealId, actor, 'status', { text: statusLabel(to, d.direction) + stored });
@@ -215,7 +253,7 @@ function applyAction(dealId, actor, action, b) {
         if (FINAL.includes(d.status)) throw conflict('Das Geschäft ist bereits beendet.');
         let returned = '';
         if (d.direction === 'sell' && d.stock_booked && ['accepted', 'delivery'].includes(d.status)) {
-          bookStock({ warehouseId: d.warehouse_id, itemId: d.item_id, delta: d.quantity, kind: 'deal_return', userId: actor.id, note: `Storno ${d.deal_number}`, dealId });
+          for (const l of linesOf(dealId)) bookStock({ warehouseId: d.warehouse_id, itemId: l.item_id, delta: l.quantity, kind: 'deal_return', userId: actor.id, note: `Storno ${d.deal_number}`, dealId });
           touch(dealId, { stock_booked: 0 });
           returned = ' – Ware wurde ins Lager zurückgebucht';
         }
@@ -252,15 +290,16 @@ function fanout(dealId, actor, action, evId, b) {
   const label = d.status_label ?? d.status;
   const target = { app: 'market', dealId };
   const key = `deal:${dealId}:ev:${evId}`;
-  const title = `${num} · ${d.item_name}`;
+  const nLines = get('SELECT COUNT(*) c FROM market_deal_lines WHERE deal_id = ?', dealId).c, tot = dealTotalOf(dealId);
+  const title = `${num} · ${d.item_name}${nLines > 1 ? ` + ${nLines - 1} weitere` : ''}`;
   const nf = (n) => Number(n).toLocaleString('de-DE');
   if (action === 'assign') {
     if (d.assignee_id && !(actor.type === 'staff' && actor.id === d.assignee_id)) notify([{ type: 'user', id: d.assignee_id }], { key, title, body: 'Dir wurde dieses Geschäft zugewiesen.', target });
     return;
   }
   const body = {
-    accept: `Angenommen · ${nf(d.quantity)} × ${nf(d.unit_price)}`,
-    counter: `Gegenangebot: ${nf(d.quantity)} × ${nf(d.unit_price)}`,
+    accept: nLines > 1 ? `Angenommen · Summe ${nf(tot)}` : `Angenommen · ${nf(d.quantity)} × ${nf(d.unit_price)}`,
+    counter: nLines > 1 ? `Gegenangebot · Summe ${nf(tot)}` : `Gegenangebot: ${nf(d.quantity)} × ${nf(d.unit_price)}`,
     reject: 'Abgelehnt', withdraw: 'Zurückgezogen',
     handover: `${label} – Übergabe festgelegt`, advance: `Neuer Status: ${label}`, cancel: 'Storniert',
     message: `Neue Nachricht${b?.text ? ': ' + String(b.text).slice(0, 80) : ''}`,
@@ -277,34 +316,44 @@ function fanout(dealId, actor, action, evId, b) {
 
 const PARTNER_ACTIONS = ['accept', 'counter', 'reject', 'withdraw', 'message'];
 
-function createDeal({ origin, partnerId, itemId, wantedId, quantity, unitPrice, suggestedPrice = null, note, actor, otherName = null }) {
+const insertLines = (dealId, lines) => lines.forEach((l, i) => run('INSERT INTO market_deal_lines (deal_id,pos,item_id,other_name,quantity,unit_price,suggested_price) VALUES (?,?,?,?,?,?,?)', dealId, i, l.itemId, l.otherName ?? null, l.quantity, l.unitPrice, l.suggestedPrice ?? null));
+const lineText = (lines) => lines.map((l) => `${l.quantity.toLocaleString('de-DE')} × ${l.unitPrice.toLocaleString('de-DE')}`).join(', ');
+
+/** Neues Geschäft des Partners. lines: [{ itemId, quantity, unitPrice, suggestedPrice?, otherName? }] – mindestens eine Position. */
+function createDeal({ origin, partnerId, lines, wantedId, note, actor }) {
   return tx(() => {
-    const t = now();
+    const t = now(), first = lines[0];
     const number = allocateNumber('deal_number', 'market.deal_prefix', 'market.deal_start');
     const res = run(`INSERT INTO market_deals (deal_number,origin,partner_id,item_id,wanted_id,quantity,unit_price,suggested_price,proposed_by,turn,status,note,other_name,created_at,updated_at)
-                     VALUES (?,?,?,?,?,?,?,?,'partner','staff','submitted',?,?,?,?)`, number, origin, partnerId, itemId, wantedId ?? null, quantity, unitPrice, suggestedPrice, note, otherName, t, t);
+                     VALUES (?,?,?,?,?,?,?,?,'partner','staff','submitted',?,?,?,?)`, number, origin, partnerId, first.itemId, wantedId ?? null, first.quantity, first.unitPrice, first.suggestedPrice ?? null, note, first.otherName ?? null, t, t);
     const id = Number(res.lastInsertRowid);
-    const evId = addEvent(id, actor, origin === 'wanted' ? 'response' : 'offer', { quantity, unitPrice, text: note });
+    insertLines(id, lines);
+    const multi = lines.length > 1, total = r2(lines.reduce((a, l) => a + l.quantity * l.unitPrice, 0));
+    const evId = addEvent(id, actor, origin === 'wanted' ? 'response' : 'offer', multi ? { text: [`Positionen: ${linesSummary(linesOf(id))} · Summe ${total.toLocaleString('de-DE')}`, note].filter(Boolean).join('\n') } : { quantity: first.quantity, unitPrice: first.unitPrice, text: note });
     const info = get("SELECT p.name pname, CASE WHEN i.is_other = 1 AND d.other_name IS NOT NULL THEN 'Sonstiges: ' || d.other_name ELSE i.name END iname FROM market_deals d JOIN partners p ON p.id = d.partner_id JOIN market_items i ON i.id = d.item_id WHERE d.id = ?", id);
-    notify(staffWith('market.view'), { key: `deal:${id}:ev:${evId}`, title: `${number} · ${info.iname}`,
-      body: `${info.pname}: ${origin === 'wanted' ? 'Antwort auf Gesuch' : 'Neues Angebot'} · ${quantity.toLocaleString('de-DE')} × ${unitPrice.toLocaleString('de-DE')}`, target: { app: 'market', dealId: id } });
+    notify(staffWith('market.view'), { key: `deal:${id}:ev:${evId}`, title: `${number} · ${info.iname}${multi ? ` + ${lines.length - 1} weitere` : ''}`,
+      body: `${info.pname}: ${origin === 'wanted' ? 'Antwort auf Gesuch' : 'Neues Angebot'} · ${multi ? `${lines.length} Positionen, Summe ${total.toLocaleString('de-DE')}` : lineText(lines)}`, target: { app: 'market', dealId: id } });
     return id;
   });
 }
 
-function createSellDeal({ partnerId, itemId, warehouseId, quantity, unitPrice, note, actor }) {
+/** Angebot des Teams an einen Partner (Verkauf aus einem Lager). lines: [{ itemId, quantity, unitPrice }] */
+function createSellDeal({ partnerId, warehouseId, lines, note, actor }) {
   return tx(() => {
-    const t = now();
+    const t = now(), first = lines[0];
     const number = allocateNumber('deal_number', 'market.deal_prefix', 'market.deal_start');
     const res = run(`INSERT INTO market_deals (deal_number,origin,direction,partner_id,item_id,warehouse_id,quantity,unit_price,proposed_by,turn,status,note,created_at,updated_at)
-                     VALUES (?,'offer','sell',?,?,?,?,?,'staff','partner','submitted',?,?,?)`, number, partnerId, itemId, warehouseId, quantity, unitPrice, note, t, t);
+                     VALUES (?,'offer','sell',?,?,?,?,?,'staff','partner','submitted',?,?,?)`, number, partnerId, first.itemId, warehouseId, first.quantity, first.unitPrice, note, t, t);
     const id = Number(res.lastInsertRowid);
-    const evId = addEvent(id, actor, 'offer', { quantity, unitPrice, text: note });
-    const iname = get('SELECT name FROM market_items WHERE id = ?', itemId).name;
-    notify([{ type: 'partner', id: partnerId }], { key: `deal:${id}:ev:${evId}`, title: `${number} · ${iname}`, body: `Neues Angebot vom Team: ${quantity.toLocaleString('de-DE')} × ${unitPrice.toLocaleString('de-DE')}`, target: { app: 'market', dealId: id } });
+    insertLines(id, lines);
+    const multi = lines.length > 1, total = r2(lines.reduce((a, l) => a + l.quantity * l.unitPrice, 0));
+    const evId = addEvent(id, actor, 'offer', multi ? { text: [`Positionen: ${linesSummary(linesOf(id))} · Summe ${total.toLocaleString('de-DE')}`, note].filter(Boolean).join('\n') } : { quantity: first.quantity, unitPrice: first.unitPrice, text: note });
+    const iname = get('SELECT name FROM market_items WHERE id = ?', first.itemId).name;
+    notify([{ type: 'partner', id: partnerId }], { key: `deal:${id}:ev:${evId}`, title: `${number} · ${iname}${multi ? ` + ${lines.length - 1} weitere` : ''}`, body: `Neues Angebot vom Team: ${multi ? `${lines.length} Positionen, Summe ${total.toLocaleString('de-DE')}` : lineText(lines)}`, target: { app: 'market', dealId: id } });
     return id;
   });
 }
+const dealTotalOf = (dealId) => get('SELECT ROUND(COALESCE(SUM(quantity * unit_price),0), 2) t FROM market_deal_lines WHERE deal_id = ?', dealId).t;
 
 const wantedDto = (w) => ({
   id: w.id, status: w.status, quantity: w.quantity, unitPrice: w.unit_price, note: w.note, expiresAt: w.expires_at, createdAt: w.created_at,
@@ -333,12 +382,12 @@ const summary = () => ({
         COALESCE(SUM(d.status IN ('submitted','negotiating','accepted','delivery','delivered','payout')), 0) active,
         COALESCE(SUM(d.status IN ('submitted','negotiating') AND d.turn = 'staff'), 0) waiting,
         COUNT(d.id) total
-      FROM lookups l LEFT JOIN market_items i ON i.category_id = l.id LEFT JOIN market_deals d ON d.item_id = i.id
+      FROM lookups l LEFT JOIN market_items i ON i.category_id = l.id LEFT JOIN (SELECT DISTINCT deal_id, item_id FROM market_deal_lines) dl ON dl.item_id = i.id LEFT JOIN market_deals d ON d.id = dl.deal_id
       WHERE l.list_key = 'market.item_category' AND l.is_active = 1 GROUP BY l.id ORDER BY l.sort_order, l.label`),
     ...all(`SELECT NULL id, 'Ohne Kategorie' label, '#94a3b8' color,
         COALESCE(SUM(d.status IN ('submitted','negotiating','accepted','delivery','delivered','payout')), 0) active,
         COALESCE(SUM(d.status IN ('submitted','negotiating') AND d.turn = 'staff'), 0) waiting, COUNT(d.id) total
-      FROM market_deals d JOIN market_items i ON i.id = d.item_id WHERE i.category_id IS NULL HAVING COUNT(d.id) > 0`),
+      FROM market_deals d WHERE EXISTS (SELECT 1 FROM market_deal_lines dl JOIN market_items i ON i.id = dl.item_id WHERE dl.deal_id = d.id AND i.category_id IS NULL) HAVING COUNT(d.id) > 0`),
   ],
 });
 
@@ -392,9 +441,9 @@ export default {
       if (status) { where.push('d.status = ?'); p.push(status); }
       if (turn === 'staff' || turn === 'partner') { where.push('d.turn = ?'); p.push(turn); }
       if (partner) { where.push('d.partner_id = ?'); p.push(Number(partner)); }
-      if (category === 'none') where.push('i.category_id IS NULL');
-      else if (category) { where.push('i.category_id = ?'); p.push(Number(category)); }
-      if (q) { where.push('(p.name LIKE ? OR i.name LIKE ? OR d.deal_number LIKE ?)'); p.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+      if (category === 'none') where.push('EXISTS (SELECT 1 FROM market_deal_lines dl JOIN market_items li ON li.id = dl.item_id WHERE dl.deal_id = d.id AND li.category_id IS NULL)');
+      else if (category) { where.push('EXISTS (SELECT 1 FROM market_deal_lines dl JOIN market_items li ON li.id = dl.item_id WHERE dl.deal_id = d.id AND li.category_id = ?)'); p.push(Number(category)); }
+      if (q) { where.push('(p.name LIKE ? OR d.deal_number LIKE ? OR EXISTS (SELECT 1 FROM market_deal_lines dl JOIN market_items li ON li.id = dl.item_id WHERE dl.deal_id = d.id AND (li.name LIKE ? OR dl.other_name LIKE ?)))'); p.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`); }
       const rows = all(`${DEAL_SQL} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY d.updated_at DESC LIMIT 300`, ...p);
       return { deals: rows.map((d) => dealDto(d, false)) };
     });
@@ -424,7 +473,7 @@ export default {
       audit(ctx, { action: 'market.deal_deleted', module: 'market', targetType: 'deal', targetId: id, targetLabel: `${d.item_name} · ${d.partner_name}`, before: { status: d.status, quantity: d.quantity, unitPrice: d.unit_price } });
       tx(() => {
         if (d.direction === 'sell' && d.stock_booked && ['accepted', 'delivery'].includes(d.status) && d.warehouse_id) {
-          bookStock({ warehouseId: d.warehouse_id, itemId: d.item_id, delta: d.quantity, kind: 'deal_return', userId: ctx.user.id, note: `Löschung ${d.deal_number}` }); // Ware, die noch nicht übergeben war, geht zurück ins Lager
+          for (const l of linesOf(id)) bookStock({ warehouseId: d.warehouse_id, itemId: l.item_id, delta: l.quantity, kind: 'deal_return', userId: ctx.user.id, note: `Löschung ${d.deal_number}` }); // Ware, die noch nicht übergeben war, geht zurück ins Lager
         }
         purgeDeal(id);
       });
@@ -441,13 +490,19 @@ export default {
       let apps = []; try { apps = JSON.parse(partner?.apps ?? '[]'); } catch { /* leer */ }
       if (!partner || partner.status !== 'active' || !apps.includes('market')) throw bad('Dieser Partner ist nicht aktiv oder hat keinen Börsen-Zugang.');
       const wh = assertCanBook(ctx.user, b.warehouseId); // nur aus Lagern, in denen man auch buchen darf
-      const item = get('SELECT id, name, unit FROM market_items WHERE id = ?', b.itemId);
-      if (!item) throw bad('Unbekanntes Item.');
-      const quantity = posInt(b.quantity, 'Menge');
-      const have = get('SELECT COALESCE(quantity,0) q FROM warehouse_stock WHERE warehouse_id = ? AND item_id = ?', wh.id, item.id)?.q ?? 0;
-      if (quantity > have) throw conflict(`Im Lager sind nur ${have.toLocaleString('de-DE')} ${item.unit} ${item.name} vorhanden.`);
-      const id = createSellDeal({ partnerId: partner.id, itemId: item.id, warehouseId: wh.id, quantity, unitPrice: posInt(b.unitPrice, 'Preis pro Einheit'), note: str(b.note, 'Hinweis', { max: 500, required: false }), actor: { type: 'staff', id: ctx.user.id, name: null } });
-      audit(ctx, { action: 'market.deal_created', module: 'market', targetType: 'deal', targetId: id, targetLabel: `${item.name} · Angebot an Partner` });
+      const raw = Array.isArray(b.lines) && b.lines.length ? b.lines : [{ itemId: b.itemId, quantity: b.quantity, unitPrice: b.unitPrice }];
+      if (raw.length > MAX_LINES) throw bad(`Höchstens ${MAX_LINES} Positionen pro Angebot.`);
+      const seen = new Set(), lines = raw.map((x) => {
+        const item = get('SELECT id, name, unit, is_other FROM market_items WHERE id = ?', x?.itemId);
+        if (!item || item.is_other) throw bad('Unbekanntes Item.');
+        if (seen.has(item.id)) throw bad(`${item.name} steht mehrmals im Angebot – bitte jedes Item nur einmal angeben.`);
+        seen.add(item.id);
+        const quantity = posInt(x.quantity, `Menge (${item.name})`), have = get('SELECT COALESCE(quantity,0) q FROM warehouse_stock WHERE warehouse_id = ? AND item_id = ?', wh.id, item.id)?.q ?? 0;
+        if (quantity > have) throw conflict(`Im Lager sind nur ${have.toLocaleString('de-DE')} ${item.unit} ${item.name} vorhanden.`);
+        return { itemId: item.id, name: item.name, quantity, unitPrice: price(x.unitPrice, `Preis pro Einheit (${item.name})`) };
+      });
+      const id = createSellDeal({ partnerId: partner.id, warehouseId: wh.id, lines, note: str(b.note, 'Hinweis', { max: 500, required: false }), actor: { type: 'staff', id: ctx.user.id, name: null } });
+      audit(ctx, { action: 'market.deal_created', module: 'market', targetType: 'deal', targetId: id, targetLabel: `${lines[0].name}${lines.length > 1 ? ` + ${lines.length - 1} weitere` : ''} · Angebot an Partner` });
       ctx.status = 201;
       return { deal: loadDeal(id, false, ctx.user.id) };
     });
@@ -510,7 +565,7 @@ export default {
       const id = Number(ctx.params.id);
       const cur = loadItem(id);
       if (!cur) throw notFound('Item nicht gefunden.');
-      const n = get('SELECT COUNT(*) c FROM market_deals WHERE item_id = ?', id).c;
+      const n = get('SELECT COUNT(DISTINCT deal_id) c FROM market_deal_lines WHERE item_id = ?', id).c;
       const force = ctx.query.force === '1' && ctx.user.isSuperadmin;
       if (n > 0 && !force) throw conflict(`Das Item wird in ${n} Geschäft(en) verwendet. Deaktiviere es stattdessen. (Superadmins können es samt Geschäften löschen.)`);
       tx(() => purgeItem(id));
@@ -529,7 +584,7 @@ export default {
         out.item_id = it.id;
       }
       if (!partial || b.quantity !== undefined) out.quantity = posInt(b.quantity, 'Menge');
-      if (!partial || b.unitPrice !== undefined) out.unit_price = posInt(b.unitPrice, 'Preis pro Einheit');
+      if (!partial || b.unitPrice !== undefined) out.unit_price = price(b.unitPrice, 'Preis pro Einheit');
       if (!partial || b.note !== undefined) out.note = str(b.note, 'Hinweis', { max: 300, required: false });
       if (b.expiresAt !== undefined) {
         if (b.expiresAt === null || b.expiresAt === '') out.expires_at = null;
@@ -605,28 +660,26 @@ export default {
     });
 
     r.post('/api/p/market/offers', P, (ctx) => {
-      const b = ctx.body;
-      if (b.other) { // „Sonstiges“: Artikel, der noch nicht angelegt ist (Freitext)
-        if (!get('SELECT allow_other FROM partners WHERE id = ?', ctx.partner.id)?.allow_other) throw forbidden('Für deinen Zugang sind „Sonstige“ Artikel nicht freigeschaltet.');
-        const other = otherItem(); if (!other) throw bad('„Sonstiges“ ist nicht verfügbar.');
-        const otherName = str(b.otherName, 'Bezeichnung des Artikels', { min: 2, max: 80 });
-        const qty = posInt(b.quantity, 'Menge');
-        if (b.unitPrice == null) throw bad('Bitte nenne deinen Preis pro Einheit.');
-        const oid = createDeal({ origin: 'offer', partnerId: ctx.partner.id, itemId: other.id, quantity: qty, suggestedPrice: null, unitPrice: posInt(b.unitPrice, 'Preis pro Einheit'), note: str(b.note, 'Hinweis', { max: 500, required: false }), actor: pActor(ctx), otherName });
-        audit(ctx, { action: 'market.deal_created', module: 'market', targetType: 'deal', targetId: oid, targetLabel: `Sonstiges: ${otherName}` });
-        ctx.status = 201;
-        return { deal: loadDeal(oid, true) };
-      }
-      const item = get('SELECT id, is_active FROM market_items WHERE id = ?', b.itemId);
-      if (!item || !item.is_active || !partnerSeesItem(ctx.partner.id, item.id)) throw bad('Dieses Item kann nicht angeboten werden.');
-      const quantity = posInt(b.quantity, 'Menge');
-      const q = quote(item.id, quantity);
-      if (b.unitPrice == null && !q) throw bad('Für dieses Item gibt es keinen automatischen Preisvorschlag – bitte nenne deinen Preis.');
-      const id = createDeal({
-        origin: 'offer', partnerId: ctx.partner.id, itemId: item.id, quantity, suggestedPrice: q?.unitPrice ?? null,
-        unitPrice: b.unitPrice == null ? q.unitPrice : posInt(b.unitPrice, 'Preis pro Einheit'), note: str(b.note, 'Hinweis', { max: 500, required: false }), actor: pActor(ctx),
+      const b = ctx.body, raw = Array.isArray(b.lines) && b.lines.length ? b.lines : [b.other ? { other: true, otherName: b.otherName, quantity: b.quantity, unitPrice: b.unitPrice } : { itemId: b.itemId, quantity: b.quantity, unitPrice: b.unitPrice }];
+      if (raw.length > MAX_LINES) throw bad(`Höchstens ${MAX_LINES} Positionen pro Angebot.`);
+      const seen = new Set(), lines = raw.map((x) => {
+        if (x?.other) { // „Sonstiges“: Artikel, der noch nicht angelegt ist (Freitext)
+          if (!get('SELECT allow_other FROM partners WHERE id = ?', ctx.partner.id)?.allow_other) throw forbidden('Für deinen Zugang sind „Sonstige“ Artikel nicht freigeschaltet.');
+          const other = otherItem(); if (!other) throw bad('„Sonstiges“ ist nicht verfügbar.');
+          const otherName = str(x.otherName, 'Bezeichnung des Artikels', { min: 2, max: 80 });
+          if (x.unitPrice == null) throw bad(`Bitte nenne deinen Preis pro Einheit (${otherName}).`);
+          return { itemId: other.id, otherName, quantity: posInt(x.quantity, `Menge (${otherName})`), unitPrice: price(x.unitPrice, `Preis pro Einheit (${otherName})`), suggestedPrice: null };
+        }
+        const item = get('SELECT id, name, is_active FROM market_items WHERE id = ?', x?.itemId);
+        if (!item || !item.is_active || !partnerSeesItem(ctx.partner.id, item.id)) throw bad('Dieses Item kann nicht angeboten werden.');
+        if (seen.has(item.id)) throw bad(`${item.name} steht mehrmals im Angebot – bitte jedes Item nur einmal angeben.`);
+        seen.add(item.id);
+        const quantity = posInt(x.quantity, `Menge (${item.name})`), q = quote(item.id, quantity);
+        if (x.unitPrice == null && !q) throw bad(`Für ${item.name} gibt es keinen automatischen Preisvorschlag – bitte nenne deinen Preis.`);
+        return { itemId: item.id, quantity, suggestedPrice: q?.unitPrice ?? null, unitPrice: x.unitPrice == null ? q.unitPrice : price(x.unitPrice, `Preis pro Einheit (${item.name})`) };
       });
-      audit(ctx, { action: 'market.deal_created', module: 'market', targetType: 'deal', targetId: id, targetLabel: loadDeal(id).item.name });
+      const id = createDeal({ origin: 'offer', partnerId: ctx.partner.id, lines, note: str(b.note, 'Hinweis', { max: 500, required: false }), actor: pActor(ctx) });
+      audit(ctx, { action: 'market.deal_created', module: 'market', targetType: 'deal', targetId: id, targetLabel: loadDeal(id).itemLabel ?? loadDeal(id).item.name });
       ctx.status = 201;
       return { deal: loadDeal(id, true) };
     });
@@ -635,9 +688,9 @@ export default {
       const w = get('SELECT * FROM market_wanted WHERE id = ?', Number(ctx.params.id));
       if (!w || !isLive(w) || !partnerSeesItem(ctx.partner.id, w.item_id, { activeOnly: false })) throw notFound('Dieses Gesuch ist nicht mehr offen.');
       const quantity = posInt(ctx.body.quantity, 'Menge', { max: w.quantity });
-      const unitPrice = ctx.body.unitPrice == null ? w.unit_price : posInt(ctx.body.unitPrice, 'Preis pro Einheit');
+      const unitPrice = ctx.body.unitPrice == null ? w.unit_price : price(ctx.body.unitPrice, 'Preis pro Einheit');
       const id = createDeal({
-        origin: 'wanted', partnerId: ctx.partner.id, itemId: w.item_id, wantedId: w.id, quantity, unitPrice,
+        origin: 'wanted', partnerId: ctx.partner.id, lines: [{ itemId: w.item_id, quantity, unitPrice }], wantedId: w.id,
         note: str(ctx.body.note, 'Hinweis', { max: 500, required: false }), actor: pActor(ctx),
       });
       audit(ctx, { action: 'market.deal_created', module: 'market', targetType: 'deal', targetId: id, targetLabel: loadDeal(id).item.name });

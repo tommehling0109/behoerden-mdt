@@ -4,7 +4,7 @@ import { fmtDateTime } from '../../ui/dom.js';
 import { api } from '../../api.js';
 import { icon } from '../../ui/icons.js';
 import { can, state, applyConfig } from '../../state.js';
-import { NAV } from '../../modules.js';
+import { NAV, allItems, defaultDockLayout } from '../../modules.js';
 
 const SWATCHES = ['#4f8cff', '#22d3ee', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#94a3b8'];
 
@@ -164,9 +164,9 @@ function resetDialog() {
 
 /** Hauptkategorien der Konfiguration: Gruppen (Karten) werden darunter einsortiert; unbekannte Gruppen landen unter „Weitere“. */
 const CATS = [
-  { id: 'system', title: 'System & Zugang', icon: 'server', groups: ['Allgemein', 'Zugang', 'Mitglieder', 'Apps', 'Updates', 'Programm-Updates', 'Datensicherung', 'Gefahrenzone'] },
+  { id: 'system', title: 'System & Zugang', icon: 'server', groups: ['Allgemein', 'Zugang', 'Mitglieder', 'Apps', 'Dock', 'Updates', 'Programm-Updates', 'Datensicherung', 'Gefahrenzone'] },
   { id: 'look', title: 'Darstellung', icon: 'palette', groups: ['Darstellung', 'Logo & Hintergrund', 'Dashboard', 'Dashboard-Widgets'] },
-  { id: 'modules', title: 'Apps & Module', icon: 'sliders', groups: ['Hilfe', 'Börse', 'Lager', 'Fahrzeuge', 'Karte', 'Kredit', 'Deckel', 'Tickets', 'Legal', 'Level', 'Level-Stufen'] },
+  { id: 'modules', title: 'Apps & Module', icon: 'sliders', groups: ['Hilfe', 'Börse', 'Lager', 'Fahrzeuge', 'Karte', 'Kredit', 'Deckel', 'Tickets', 'Termine & Aufträge', 'Legal', 'Level', 'Level-Stufen'] },
   { id: 'external', title: 'Externe & Sonderzugänge', icon: 'link', groups: ['Externe Zugänge (neutral)', 'Exekutive-Zugang', 'Exekutive-Zugang (Hack-Link)'] },
 ];
 const OPEN_KEY = 'mdt.cfg.open.v1';
@@ -202,6 +202,91 @@ function helpPdfCard(host) {
     h('div', null, h('div', { class: 'lbl' }, 'Anleitung als PDF'), h('div', { class: 'hlp' }, 'Erzeugt aus allen aktuellen Hilfe-Kapiteln (inklusive eigener Anpassungen) ein PDF – für Mitarbeiter mit allen Bereichen, für Partner mit deren Apps. Ausgeblendete Kapitel fehlen.')),
     h('div', { class: 'row' }, button('Mitarbeiter-PDF', { icon: 'download', onClick: () => window.open('/api/help/export.pdf?aud=m', '_blank', 'noopener') }), button('Partner-PDF', { icon: 'download', onClick: () => window.open('/api/help/export.pdf?aud=p', '_blank', 'noopener') })));
   host.append(card('Hilfe', body, { icon: 'help', flush: true }));
+}
+
+/**
+ * Karte „Dock“: Anordnung und Gruppen der Apps im Dock für ALLE – per Ziehen und Ablegen (nur mit Recht „system.apps“).
+ * App auf eine andere App ziehen = neue Gruppe; App auf eine Gruppe ziehen = hinein; App zwischen die Symbole ziehen = einzeln; Gruppen lassen sich am Griff verschieben.
+ */
+function dockCard(host) {
+  const apps = new Map(allItems(NAV).map((i) => [i.id, i]));
+  const norm = (layout) => { // unbekannte Apps raus, doppelte raus, fehlende ans Ende, leere Gruppen raus
+    const seen = new Set(), out = [];
+    for (const e of layout) {
+      if (e.app) { if (apps.has(e.app) && !seen.has(e.app)) { seen.add(e.app); out.push({ app: e.app }); } continue; }
+      const items = (e.items ?? []).filter((id) => apps.has(id) && !seen.has(id)); items.forEach((id) => seen.add(id));
+      if (items.length) out.push({ gid: e.gid, label: e.label, items });
+    }
+    for (const id of apps.keys()) if (!seen.has(id)) out.push({ app: id });
+    return out;
+  };
+  const clone = (l) => JSON.parse(JSON.stringify(l));
+  const savedNow = () => { const s = state.config['ui.dock_layout']; return Array.isArray(s) && s.length ? s : defaultDockLayout(); };
+  let cur = norm(clone(savedNow())), drag = null;
+  const strip = h('div', { class: 'dk-strip' }), err = h('div');
+  const newId = () => `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+
+  const findApp = (id) => { for (let i = 0; i < cur.length; i++) { if (cur[i].app === id) return { i }; const j = cur[i].items?.indexOf(id) ?? -1; if (j >= 0) return { i, j }; } return null; };
+  const takeApp = (id) => { const f = findApp(id); if (!f) return; if (f.j === undefined) cur.splice(f.i, 1); else { cur[f.i].items.splice(f.j, 1); if (!cur[f.i].items.length) cur.splice(f.i, 1); } };
+  const insertBefore = (entry, ref) => { const at = ref ? cur.indexOf(ref) : cur.length; cur.splice(at < 0 ? cur.length : at, 0, entry); };
+
+  const dropOnGap = (ref) => { // zwischen Symbole: App wird einzeln, Gruppe wird verschoben
+    if (!drag) return;
+    if (drag.folder) { const f = cur.find((e) => e.gid === drag.folder); if (!f || f === ref) return; cur.splice(cur.indexOf(f), 1); insertBefore(f, ref); }
+    else { if (ref?.app === drag.app) return; takeApp(drag.app); insertBefore({ app: drag.app }, ref); }
+  };
+  const dropOnApp = (target) => { // App auf App: neue Gruppe
+    if (!drag || drag.folder || drag.app === target.app) return;
+    takeApp(drag.app); const at = cur.indexOf(target); cur[at] = { gid: newId(), label: 'Neue Gruppe', items: [target.app, drag.app] };
+  };
+  const dropOnFolder = (folder) => { // App in Gruppe
+    if (!drag || drag.folder || folder.items.includes(drag.app)) return;
+    takeApp(drag.app); if (!cur.includes(folder)) return; folder.items.push(drag.app);
+  };
+
+  const dz = (el, { over, drop, cls }) => { // Ablagefläche
+    el.addEventListener('dragover', (e) => { if (!drag || !over()) return; e.preventDefault(); el.classList.add(cls); });
+    el.addEventListener('dragleave', (e) => { if (!el.contains(e.relatedTarget)) el.classList.remove(cls); });
+    el.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); el.classList.remove(cls); if (over()) { drop(); drag = null; draw(); } });
+  };
+  const src = (el, payload) => {
+    el.draggable = true;
+    el.addEventListener('dragstart', (e) => { drag = payload; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', 'dock'); } catch { /* egal */ } e.stopPropagation(); setTimeout(() => el.classList.add('dragging'), 0); });
+    el.addEventListener('dragend', () => { drag = null; el.classList.remove('dragging'); draw(); });
+  };
+  const chip = (id, small) => { const i = apps.get(id); const el = h('div', { class: `dk-chip ${small ? 'small' : ''}`, title: i.label }, h('span', { class: 'dk-ic' }, icon(i.icon)), h('span', null, i.label)); src(el, { app: id }); return el; };
+  const gap = (ref) => { const g = h('div', { class: 'dk-gap' }); dz(g, { over: () => true, drop: () => dropOnGap(ref), cls: 'over' }); return g; };
+
+  function tile(e) {
+    if (e.app) { const el = h('div', { class: 'dk-tile' }, chip(e.app)); dz(el, { over: () => !drag.folder && drag.app !== e.app, drop: () => dropOnApp(e), cls: 'combine' }); return el; }
+    const handle = h('span', { class: 'dk-handle', title: 'Gruppe verschieben' }, icon('menu')), label = h('input', { class: 'input dk-label', value: e.label, maxLength: 30, 'aria-label': 'Name der Gruppe' });
+    label.addEventListener('input', () => { e.label = label.value; });
+    label.addEventListener('blur', () => { if (!label.value.trim()) { label.value = 'Gruppe'; e.label = 'Gruppe'; } });
+    const dissolve = button('', { size: 'sm', variant: 'ghost', icon: 'x', title: 'Gruppe auflösen (Apps bleiben einzeln im Dock)', onClick: () => { cur.splice(cur.indexOf(e), 1, ...e.items.map((app) => ({ app }))); draw(); } });
+    const el = h('div', { class: 'dk-folder' }, h('div', { class: 'dk-fhead' }, handle, label, dissolve), h('div', { class: 'dk-fbody' }, e.items.map((id) => chip(id, true))));
+    handle.draggable = true; handle.addEventListener('dragstart', (ev) => { drag = { folder: e.gid }; ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', 'dock'); } catch { /* egal */ } ev.dataTransfer.setDragImage?.(el, 20, 20); setTimeout(() => el.classList.add('dragging'), 0); });
+    handle.addEventListener('dragend', () => { drag = null; el.classList.remove('dragging'); draw(); });
+    dz(el, { over: () => !drag.folder && !e.items.includes(drag.app), drop: () => dropOnFolder(e), cls: 'combine' });
+    return el;
+  }
+
+  function draw() { mount(strip, cur.flatMap((e) => [gap(e), tile(e)]), gap(null)); }
+  draw();
+
+  const payload = () => cur.map((e) => (e.app ? { app: e.app } : { gid: e.gid, label: e.label.trim() || 'Gruppe', items: e.items }));
+  const apply = async (value, msg) => {
+    err.replaceChildren();
+    try { await api.put('/api/config', { values: { 'ui.dock_layout': value } }); applyConfig({ ...state.config, 'ui.dock_layout': value }); cur = norm(clone(savedNow())); draw(); toast(msg); }
+    catch (ex) { err.replaceChildren(formError(ex.message)); }
+  };
+  const body = h('div', { class: 'dk-wrap' },
+    h('div', { class: 'setting-row', style: { gridTemplateColumns: 'minmax(0,1fr)' } }, h('div', null, h('div', { class: 'lbl' }, 'Dock-Anordnung für alle'), h('div', { class: 'hlp' }, 'Ziehe eine App auf eine andere, um eine Gruppe zu bilden, oder in eine Gruppe hinein. Zwischen die Symbole gezogen steht sie einzeln im Dock; Gruppen verschiebst du am Griff. „Speichern“ gilt sofort für alle Mitarbeiter. Neue Apps erscheinen automatisch ganz hinten. Apps, die jemand nicht sehen darf, fehlen bei ihm im Dock.'))),
+    err, h('div', { class: 'dk-scroll' }, strip),
+    h('div', { class: 'row', style: { padding: '12px 20px 16px', justifyContent: 'flex-end' } },
+      button('Standard wiederherstellen', { icon: 'refresh', onClick: () => apply([], 'Dock auf Standard zurückgesetzt – gilt für alle.') }),
+      button('Verwerfen', { onClick: () => { cur = norm(clone(savedNow())); draw(); } }),
+      button('Speichern', { variant: 'primary', icon: 'check', onClick: () => apply(payload(), 'Dock gespeichert – gilt sofort für alle.') })));
+  host.append(card('Dock', body, { icon: 'dashboard', flush: true }));
 }
 
 /** Karte „Level-Stufen“: Name, Symbol und XP-Schwelle der zehn Partner-Level. */
@@ -320,7 +405,7 @@ export default async function render(container, ctx) {
   const extras = { append: (el) => { place(el); applySearch(); } };
   cards.forEach(place);
   mount(container, h('div', { class: 'stack', style: { gap: '18px' } }, err, bar, layout), settings.some((x) => !x.hidden && mayEdit(x)) && h('div', { class: 'savebar' }, save));
-  if (can('system.apps')) appsCard(extras);
+  if (can('system.apps')) { appsCard(extras); dockCard(extras); }
   if (state.user?.isSuperadmin) helpPdfCard(extras);
   { const ls = settings.find((x) => x.key === 'level.levels'); if (ls) levelsCard(extras, ls, mayEdit(ls)); }
   if (full) addExtras(extras, editable); else if (can('hack.manage')) hackCard(extras);

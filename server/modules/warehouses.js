@@ -31,6 +31,14 @@ const nonNeg = (v, name, max = 100_000_000) => {
   return v;
 };
 
+/** Preis mit bis zu zwei Nachkommastellen (leer = kein Preis). */
+const nonNegPrice = (v, name, max = 100_000_000) => {
+  if (v === null || v === '' || v === undefined) return null;
+  const n = typeof v === 'string' ? Number(v.trim().replace(',', '.')) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > max) throw bad(`${name}: Betrag von 0 bis ${max.toLocaleString('de-DE')} erforderlich (bis zu 2 Nachkommastellen).`);
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+};
+
 /** Zugriffsstufe eines Mitglieds auf ein Lager: 'manage' | 'view' | null. */
 export function levelFor(user, wh) {
   if (user.isAdmin || user.perms.has('warehouse.manage')) return 'manage';
@@ -387,8 +395,8 @@ export default {
       if (b.isActive !== undefined) out.is_active = b.isActive ? 1 : 0;
       if (b.minPrice !== undefined || b.maxPrice !== undefined) {
         if (!user.perms.has('warehouse.prices')) throw forbidden('Für Preisspannen fehlt dir das Recht „warehouse.prices“.');
-        if (b.minPrice !== undefined) out.min_price = nonNeg(b.minPrice, 'Mindestpreis');
-        if (b.maxPrice !== undefined) out.max_price = nonNeg(b.maxPrice, 'Höchstpreis');
+        if (b.minPrice !== undefined) out.min_price = nonNegPrice(b.minPrice, 'Mindestpreis');
+        if (b.maxPrice !== undefined) out.max_price = nonNegPrice(b.maxPrice, 'Höchstpreis');
       }
       return out;
     };
@@ -430,7 +438,7 @@ export default {
       const force = ctx.query.force === '1' && ctx.user.isSuperadmin;
       if (!force) {
         if (totalStock(id) > 0) throw conflict('Vom Item liegt noch Bestand in Lagern. (Superadmins können es samt Bestand löschen.)');
-        if (get('SELECT COUNT(*) c FROM market_deals WHERE item_id = ?', id).c > 0 || get('SELECT COUNT(*) c FROM market_wanted WHERE item_id = ?', id).c > 0) throw conflict('Das Item wird in der Börse verwendet. Deaktiviere es stattdessen.');
+        if (get('SELECT COUNT(*) c FROM market_deal_lines WHERE item_id = ?', id).c > 0 || get('SELECT COUNT(*) c FROM market_wanted WHERE item_id = ?', id).c > 0) throw conflict('Das Item wird in der Börse verwendet. Deaktiviere es stattdessen.');
       }
       tx(() => purgeItem(id));
       audit(ctx, { action: 'warehouse.item_deleted', module: 'warehouse', targetType: 'item', targetId: id, targetLabel: cur.name });

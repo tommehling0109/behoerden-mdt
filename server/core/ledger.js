@@ -13,10 +13,14 @@ export function expectDealPayment(dealId) {
   const d = get('SELECT * FROM market_deals WHERE id = ?', dealId);
   if (!d) return;
   run("UPDATE finance_ledger SET status = 'cancelled', cancelled_at = ? WHERE deal_id = ? AND status = 'expected'", now(), dealId);
-  run(`INSERT INTO finance_ledger (entry_type,direction,amount,currency,status,deal_id,partner_id,item_id,quantity,unit_price,warehouse_id,note,created_at)
-       VALUES ('deal',?,?,?,'expected',?,?,?,?,?,?,?,?)`,
-  d.direction === 'sell' ? 'in' : 'out', d.quantity * d.unit_price, getConfig('market.currency') ?? '$', dealId, d.partner_id, d.item_id, d.quantity, d.unit_price, d.warehouse_id ?? null,
-  `${d.direction === 'sell' ? 'Verkauf' : 'Ankauf'} ${d.deal_number ?? ''}`.trim(), now());
+  // Je Position (Item) eine Zeile – so bleibt das Journal je Item auswertbar; Annahme/Abschluss/Storno gelten für alle Zeilen des Geschäfts
+  const lines = all('SELECT item_id, quantity, unit_price FROM market_deal_lines WHERE deal_id = ? ORDER BY pos, id', dealId);
+  for (const l of lines.length ? lines : [{ item_id: d.item_id, quantity: d.quantity, unit_price: d.unit_price }]) {
+    run(`INSERT INTO finance_ledger (entry_type,direction,amount,currency,status,deal_id,partner_id,item_id,quantity,unit_price,warehouse_id,note,created_at)
+         VALUES ('deal',?,?,?,'expected',?,?,?,?,?,?,?,?)`,
+    d.direction === 'sell' ? 'in' : 'out', Math.round(l.quantity * l.unit_price * 100) / 100, getConfig('market.currency') ?? '$', dealId, d.partner_id, l.item_id, l.quantity, l.unit_price, d.warehouse_id ?? null,
+    `${d.direction === 'sell' ? 'Verkauf' : 'Ankauf'} ${d.deal_number ?? ''}`.trim(), now());
+  }
 }
 export const settleDeal = (dealId) => run("UPDATE finance_ledger SET status = 'settled', settled_at = ? WHERE deal_id = ? AND status = 'expected'", now(), dealId);
 export const voidDeal = (dealId) => run("UPDATE finance_ledger SET status = 'cancelled', cancelled_at = ? WHERE deal_id = ? AND status = 'expected'", now(), dealId);

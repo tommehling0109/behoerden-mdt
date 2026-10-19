@@ -19,7 +19,7 @@ export function purgeDeal(id) {
 }
 /** Artikel samt aller Geschäfte, Gesuche, Bestände und Verläufe (nur Superadmin). */
 export function purgeItem(id) {
-  for (const d of all('SELECT id FROM market_deals WHERE item_id = ?', id)) purgeDeal(d.id);
+  for (const d of all('SELECT DISTINCT deal_id id FROM market_deal_lines WHERE item_id = ?', id)) purgeDeal(d.id);
   run('DELETE FROM market_wanted WHERE item_id = ?', id);
   run('DELETE FROM warehouse_stock WHERE item_id = ?', id);
   run('DELETE FROM warehouse_events WHERE item_id = ?', id);

@@ -29,6 +29,7 @@ Tipp: Die Tour für Neulinge kannst du jederzeit unter „Hilfe“ → „Tour n
   { id: 'm-desktop', aud: 'm', group: 'Grundlagen', title: 'Der Desktop und die Fenster', icon: 'dashboard', summary: 'Dock, Startmenü, Fenster verschieben und Größe ändern.', sections: [
     S('Dock und Startmenü', `
 - Das **Dock** am unteren Rand zeigt deine Apps. Ein Klick öffnet die App, ein weiterer holt ein minimiertes Fenster zurück.
+- Zusammengehörige Apps sind im Dock in **Gruppen** zusammengefasst (Symbol mit mehreren kleinen Symbolen, wie ein Ordner auf dem Handy). Ein Klick darauf öffnet die Auswahl, ein Klick auf eine App startet sie.
 - Das **Startmenü** listet alle Apps nach Bereichen. Hier findest du auch Einstellungen, Konto und Abmelden.
 - Rote Zähler an einer App zeigen, dass dort etwas auf dich wartet (z. B. ungelesene Chat-Nachrichten).`),
     S('Fenster bedienen', `
@@ -43,7 +44,7 @@ Tipp: Desktop-Symbole kannst du in den Einstellungen ein- oder ausblenden und fr
     S('Schwarzes Brett', `
 Das Schwarze Brett zeigt aktuelle Mitteilungen der Führung. Wichtige Einträge musst du nach dem Lesen **bestätigen**.`, ['board.view']),
     S('Problemleiste', `
-Die Problemleiste erscheint nur, wenn es akute Probleme gibt – zum Beispiel beschädigte Fahrzeuge, wartende Börsen-Geschäfte, überfällige Lagerkosten oder offene Tickets. Sie zeigt dir **nur Probleme aus Bereichen, auf die du Zugriff hast**.
+Die Problemleiste erscheint nur, wenn es akute Probleme gibt – zum Beispiel beschädigte Fahrzeuge, wartende Börsen-Geschäfte, überfällige Lagerkosten, fast volle Lager (ab 75 % ein Problem, ab 90 % kritisch) oder offene Tickets. Sie zeigt dir **nur Probleme aus Bereichen, auf die du Zugriff hast**.
 
 Ein Klick auf einen Eintrag öffnet die passende App. Die Leiste lässt sich zuklappen.`),
     S('Online-Liste', `
@@ -97,11 +98,13 @@ Lade die Seite neu (Strg + F5). Hilft das nicht, melde den Fehler als **Ticket**
   // ───────────── Mitarbeiter · Apps ─────────────
   { id: 'm-dashboard', aud: 'm', group: 'Apps', title: 'Dashboard', icon: 'dashboard', app: 'dashboard', summary: 'Die aktuelle Lage auf einen Blick.', sections: [
     S('Was zeigt das Dashboard?', `
-Ganz oben steht der **Regelwerk** der Organisation – mit „Regelwerk lesen“ öffnest du ihn direkt im Panel. Darunter fasst das Dashboard die wichtigsten Kennzahlen und Neuigkeiten zusammen. Welche Kacheln du siehst, hängt davon ab, auf welche Bereiche du Zugriff hast. Ein Klick auf eine Kachel führt dich in die zugehörige App.`),
+Ganz oben steht der **Regelwerk** der Organisation – mit „Regelwerk lesen“ öffnest du ihn direkt im Panel. Darunter fasst das Dashboard die wichtigsten Kennzahlen und Neuigkeiten zusammen. Welche Kacheln du siehst, hängt davon ab, auf welche Bereiche du Zugriff hast. Ein Klick auf eine Kachel führt dich in die zugehörige App. Der Codex kann ein Google-Dokument oder ein sicherer https-Link auf ein eigenes System sein (z. B. Zipline).`),
   ] },
   { id: 'm-market', aud: 'm', group: 'Apps', title: 'Börse', icon: 'tag', app: 'market', perm: ['market.view'], summary: 'Ankauf und Verkauf mit externen Partnern.', sections: [
     S('Überblick', `
 In der Börse laufen Angebote und Gesuche zwischen euch und externen Partnern zusammen. Partner stellen Anfragen, ihr bestätigt, verhandelt und schließt Geschäfte ab.`),
+    S('Mehrere Items in einem Geschäft', `
+Ein Geschäft kann mehrere Positionen haben. Beim Angebot an einen Partner wählst du das Lager, dann Item, Menge und Preis je Position und fügst mit „Weiteres Item hinzufügen“ weitere an – jedes Item nur einmal. Bei einem Gegenangebot passt du Menge und Preis jeder Position an. Annahme, Storno und Wareneingang gelten für alle Positionen gemeinsam.`, ['market.deals.manage']),
     S('Geschäfte bearbeiten', `
 1. Öffne ein wartendes Geschäft aus der Liste.
 2. Prüfe Artikel, Menge und Preis.
@@ -130,6 +133,12 @@ Hinweis: Auch Mitglieder sammeln XP und steigen im Level auf, wenn das Level-Sys
 Verschiebe die Karte mit gedrückter Maustaste, zoome mit dem Mausrad. Waypoints und Postleitzahlen helfen dir bei der Orientierung.`),
     S('Waypoints bearbeiten', `
 Mit dem Recht zum Bearbeiten kannst du Waypoints setzen, verschieben und entfernen. Änderungen sehen alle anderen sofort.`, ['map.edit']),
+    S('Zonen einzeichnen', `
+Mit **Zone (Punkte)** klickst du die Eckpunkte eines Bereichs nacheinander an. Doppelklick, Enter oder „Fertig“ schließt die Form, die Rücktaste nimmt den letzten Punkt zurück. Mit **Zone (Freihand)** hältst du die Maustaste gedrückt und zeichnest den Bereich frei; beim Loslassen wird die Form geschlossen und geglättet.
+
+Danach gibst du Name, Art (z. B. Gefahrenzone, Sperrgebiet, Farming-Gebiet), Farbe, Deckkraft und Notizen an. Über „Zonen“ blendest du alle Bereiche ein oder aus. Ein Klick auf eine Zone zeigt die Details; dort lässt sie sich auch ändern, neu zeichnen oder löschen.`, ['map.edit']),
+    S('Zonen ansehen', `
+Eingezeichnete Bereiche (z. B. Gefahrenzonen) erscheinen farbig auf der Karte und in der Liste links unter „Zonen“. Ein Klick darauf zoomt zur Zone und zeigt die Notizen.`),
   ] },
   { id: 'm-warehouse', aud: 'm', group: 'Apps', title: 'Lager', icon: 'storage', app: 'warehouse', perm: ['warehouse.view'], summary: 'Lagerstandorte, Bestand und Preisspannen.', sections: [
     S('Lager ansehen', `
@@ -160,6 +169,32 @@ Mit dem Export-Recht kannst du das Journal als Datei herunterladen.`, ['finance.
   { id: 'm-stats', aud: 'm', group: 'Apps', title: 'Statistik', icon: 'chart', app: 'stats', perm: ['stats.view'], summary: 'Kennzahlen und Diagramme aus allen Bereichen.', sections: [
     S('Auswertungen', `
 Die Statistik zeigt Diagramme zu Umsatz, Börse, Fahrzeugen und mehr. Du siehst nur Bereiche, auf die du Zugriff hast. Mit dem Zeitraum-Filter grenzt du die Daten ein.`),
+    S('Wochen- und Monatsbericht', `
+Im Reiter **Bericht** wählst du Woche oder Monat und blätterst mit den Pfeilen durch die Zeiträume. Jede Kennzahl (Umsatz, abgeschlossene Geschäfte, Einnahmen/Ausgaben, Aufträge, aktive Mitglieder …) steht im Vergleich zum Zeitraum davor – grün besser, rot schlechter. Dazu die Top-Items und Top-Partner der Börse. Mit **PDF** lädst du den Bericht herunter. Du siehst nur die Bereiche, für die du das Ansichtsrecht hast.`),
+  ] },
+  { id: 'm-activity', aud: 'm', group: 'Apps', title: 'Aktivität & Abmeldung', icon: 'activity', app: 'activity', perm: ['activity.absence', 'activity.view'], summary: 'Sich bei Urlaub oder Pause abmelden – und sehen, wer aktiv ist.', sections: [
+    S('Dich abmelden', `
+Bist du länger nicht da (Urlaub, Prüfung, Pause), melde dich vorher ab:
+
+1. Öffne **Aktivität & Abmeldung** und wähle **Abmelden**.
+2. Gib an, von wann bis wann du weg bist, und – wenn du magst – einen Grund.
+3. Bestätige. Solange du abgemeldet bist, giltst du nicht als inaktiv.
+
+Ein Zeitraum darf höchstens so lange dauern, wie in der Konfiguration eingestellt (Standard 60 Tage). Bist du früher zurück, wähle **Zurückmelden**. Eine noch nicht begonnene Abmeldung kannst du löschen.`, ['activity.absence']),
+    S('Wer als aktiv gilt', `
+Aktiv ist, wer das Panel mit entsperrtem Bildschirm geöffnet hat oder sich anmeldet. Wer länger als die eingestellte Zahl an Tagen (Standard 7) nicht aktiv war und nicht abgemeldet ist, gilt als **inaktiv**. Auf „Meine Abmeldung“ siehst du deine eigene Aktivität der letzten Tage.`, ['activity.absence']),
+    S('Übersicht über alle Mitglieder', `
+Der Reiter **Übersicht** zeigt jedes Mitglied mit Personalnummer, Rang, Status (aktiv, abgemeldet, inaktiv, neu), letztem Besuch, aktiven Tagen in den letzten 14 und 30 Tagen und – falls vorhanden – der Abmeldung samt Grund. Inaktive stehen oben. Die Problemleiste zeigt inaktive Mitglieder gesammelt, und einmal pro Woche kommt eine Benachrichtigung mit den Nummern.`, ['activity.view']),
+    S('Für andere abmelden', `
+Mit dem Recht „Aktivität: Abmeldungen für andere eintragen“ meldest du Mitglieder in der Übersicht ab (**Abmelden** in der Zeile) oder beendest ihre Abmeldung. Das Mitglied wird benachrichtigt.`, ['activity.manage']),
+  ] },
+  { id: 'm-onboarding', aud: 'm', group: 'Verwaltung', title: 'Einarbeitung', icon: 'userCheck', app: 'onboarding', perm: ['onboarding.check', 'onboarding.manage'], summary: 'Checkliste für neue Mitglieder – Fortschritt verfolgen und Schritte bestätigen.', sections: [
+    S('So läuft die Einarbeitung', `
+Wird ein Mitglied zum ersten Mal freigeschaltet, startet automatisch seine **Einarbeitung**: Auf seinem Dashboard erscheint eine Checkliste. Schritte vom Typ **Mitglied** hakt es selbst ab (z. B. „Codex gelesen“), Schritte vom Typ **Führung** bestätigst du in der App „Einarbeitung“. Sind alle Schritte erledigt, gilt die Einarbeitung als abgeschlossen und du wirst benachrichtigt.`, ['onboarding.check']),
+    S('Fortschritt und Schritte bestätigen', `
+Unter **Laufend** stehen alle Mitglieder in der Einarbeitung mit Fortschrittsbalken. Hake die Schritte direkt an. Deine eigenen Schritte der Führung bestätigt jemand anderes. **Einarbeitung beenden** schließt sie ab, auch wenn Schritte offen sind; **Mitglied aufnehmen** startet sie für ein bestehendes Mitglied nachträglich.`, ['onboarding.check']),
+    S('Die Checkliste einstellen', `
+Im Reiter **Schritte** legst du die Checkliste fest: Titel, Beschreibung und wer bestätigt. Du kannst Schritte verschieben, ausblenden oder löschen. Änderungen gelten sofort auch für laufende Einarbeitungen. In der Konfiguration (Gruppe „Mitglieder“) lässt sich die automatische Einarbeitung ganz abschalten.`, ['onboarding.manage']),
   ] },
   { id: 'm-credit', aud: 'm', group: 'Apps', title: 'Kredit', icon: 'bank', app: 'credit', perm: ['credit.view'], summary: 'Kreditanfragen, Zinsen und Ratenpläne.', sections: [
     S('Kreditanfragen', `
@@ -178,6 +213,36 @@ Ein Deckel ist das Konto einer Firma bei euch: Leistungen werden darauf gebucht 
 Du erstellst Abrechnungen für einen Zeitraum und markierst Zahlungen als erhalten.`, ['tab.statements']),
     S('Firmen verwalten', `
 Hier legst du Firmen an, änderst Daten und verwaltest die Zugänge der Firmen.`, ['tab.manage_companies']),
+  ] },
+  { id: 'm-schedule', aud: 'm', group: 'Apps', title: 'Termine & Aufträge', icon: 'calendar', app: 'schedule', perm: ['schedule.view'], summary: 'Kalender mit Terminen und Aufträge, die an Mitglieder verteilt werden.', sections: [
+    S('Kalender', `
+Der Kalender zeigt alle Termine im Monat oder als Agenda (die nächsten 45 Tage). Ein Klick auf einen Tag zeigt, was dort ansteht; ein Klick auf einen Termin öffnet die Details. Fristen von Aufträgen erscheinen mit einer Flagge im Kalender.`),
+    S('Auf Termine zu- oder absagen', `
+Bist du bei einem Termin beteiligt, wirst du benachrichtigt und kannst im Termin **Zusagen**, **Vielleicht** oder **Absagen** wählen. Wer den Termin angelegt hat, bekommt deine Antwort mitgeteilt.
+
+Hinweis: Fremde Mitglieder erscheinen überall nur mit Personalnummer, nie mit Namen.`),
+    S('Erinnerungen', `
+Bei jedem Termin lassen sich bis zu vier Erinnerungen einstellen (zum Termin, 5 Minuten bis 2 Tage vorher). Erinnert werden der Ersteller und alle Beteiligten, die nicht abgesagt haben – als Benachrichtigung. Bei Aufträgen erinnert das Panel kurz vor der Frist und bei Überfälligkeit.`),
+    S('Meine Aufträge', `
+Unter **Aufträge** siehst du, was dir zugewiesen wurde. Du meldest selbst, wie es steht:
+
+1. **Annehmen**, wenn du den Auftrag übernimmst.
+2. **Erledigt** melden, wenn er fertig ist – optional mit einer Notiz (z. B. was abgegeben wurde).
+3. **Ablehnen**, wenn du ihn nicht übernehmen kannst. Der Auftraggeber wird informiert.
+
+Tipp: Ein Zähler am App-Symbol zeigt, wie viele Aufträge für dich offen sind.`),
+    S('Termine anlegen', `
+1. Wähle „Neuer Termin“ (oder klicke auf einen Tag und dann „Termin“).
+2. Trage Titel, Art, Beginn, Ort und Beschreibung ein.
+3. Wähle Beteiligte und Erinnerungen. „Nur Beteiligte“ blendet den Termin für alle anderen aus.`, ['schedule.create']),
+    S('Aufträge vergeben', `
+1. Wähle „Neuer Auftrag“.
+2. Beschreibe, was beauftragt wird, setze Frist und Priorität und wähle die Beauftragten.
+3. Optional ordnest du den Auftrag einem Termin zu. Die Beauftragten werden sofort benachrichtigt.
+
+Unter „Von mir vergeben“ siehst du den Stand aller Aufträge, die du verteilt hast. Du kannst sie ändern, zurückziehen oder löschen.`, ['schedule.tasks.assign']),
+    S('Alles verwalten', `
+Mit diesem Recht siehst du alle Termine (auch „Nur Beteiligte“) und alle Aufträge und darfst sie ändern oder löschen.`, ['schedule.manage']),
   ] },
   { id: 'm-tickets', aud: 'm', group: 'Apps', title: 'Tickets', icon: 'bug', app: 'tickets', summary: 'Fehler melden und verfolgen.', sections: [
     S('Ticket erstellen', `
@@ -216,6 +281,12 @@ Du kannst Kanäle mit externen Partnern führen.`, ['chat.partners']),
 
   // ───────────── Mitarbeiter · Verwaltung ─────────────
   { id: 'm-users', aud: 'm', group: 'Verwaltung', title: 'Benutzer verwalten', icon: 'users', app: 'users', perm: ['users.view'], summary: 'Zugänge freischalten, bearbeiten und Profile ansehen.', sections: [
+    S('Watchlist', `
+Beobachtete Personen (z. B. Ex-Mitglieder) stehen auf der Watchlist und erscheinen mit einem roten Hinweis in der Liste und im Profil. Der Reiter „Watchlist“ zeigt alle Einträge mit Grund und Beobachtern.
+
+Hinweis: Die Liste ist vertraulich. Sichtbar ist sie nur für die Führung, die beauftragten Beobachter und wer den Eintrag angelegt hat. Die Person selbst sieht nichts davon. Beobachter bekommen eine Benachrichtigung, wenn die Person sich anmeldet oder (gesperrt) es versucht.
+
+Mit dem Recht „Benutzer bearbeiten“ setzt du Personen über „Person auf die Watchlist“ oder im Profil auf die Liste und nimmst sie wieder herunter.`, ['users.edit', 'users.watchlist']),
     S('Neue Zugänge freischalten', `
 Neue Registrierungen erscheinen mit dem Status „Wartet“. Ein Zähler am App-Symbol zeigt, wie viele es sind.
 
@@ -246,6 +317,8 @@ Hier siehst du die Rangfolge und die Abteilungen der Organisation.`),
 Du legst Ränge an, ordnest sie in der Hierarchie und weist Abteilungen zu. Neue Ränge lassen sich direkt über einem bestehenden einordnen.`, ['org.manage']),
   ] },
   { id: 'm-partners', aud: 'm', group: 'Verwaltung', title: 'Externe Zugänge (Partner)', icon: 'link', app: 'partners', perm: ['partners.view'], summary: 'Links und Codes für Partner verwalten.', sections: [
+    S('Partner bewerten', `
+In den Details eines Partners siehst du die **Bewertung**: Abschlussquote, Anzahl und Umsatz der Geschäfte, durchschnittliche Dauer bis zum Abschluss und überfällige Kreditraten. Ab drei beendeten Geschäften gibt es eine Einstufung (sehr zuverlässig bis unzuverlässig) – Ablehnungen durch uns zählen nicht gegen den Partner. Dazu kannst du Sterne (1–5) und eine interne Notiz setzen. Der Partner sieht davon nichts.`, ['partners.view']),
     S('Partner anlegen', `
 1. Wähle „Neu“ und gib Art, Name und Ansprechpartner an.
 2. Wähle die freigeschalteten Apps (z. B. Börse, Chat, Kredit).
@@ -268,6 +341,14 @@ Die Konfiguration ist nach Kategorien gegliedert. Mit der Suche oben findest du 
 Ändere die Werte und klicke unten auf **Speichern**. Die meisten Änderungen gelten sofort für alle.`, ['config.edit']),
     S('Apps ein- und ausschalten', `
 Mit dem entsprechenden Recht schaltest du Apps für alle Benutzer ab. Daten bleiben erhalten.`, ['system.apps']),
+    S('Dock anordnen', `
+Unter „Dock“ legst du für alle fest, wie die Apps im Dock gruppiert sind.
+
+1. Ziehe eine App auf eine andere, um eine Gruppe zu bilden, oder in eine bestehende Gruppe hinein.
+2. Ziehe sie zwischen die Symbole, damit sie einzeln im Dock steht. Gruppen verschiebst du am Griff, umbenennen kannst du sie direkt.
+3. Klicke im Dock-Bereich auf „Speichern“ – die Änderung gilt sofort für alle.
+
+Tipp: „Standard wiederherstellen“ setzt die ursprüngliche Anordnung zurück. Neue Apps erscheinen automatisch ganz hinten.`, ['system.apps']),
   ] },
   { id: 'm-audit', aud: 'm', group: 'Verwaltung', title: 'Audit-Log', icon: 'audit', app: 'audit', perm: ['audit.view'], summary: 'Nachvollziehbarkeit aller wichtigen Aktionen.', sections: [
     S('Aktionen nachvollziehen', `
@@ -301,6 +382,8 @@ In der Börse siehst du, was wir suchen und anbieten. Du kannst eigene Angebote 
 1. Wähle einen Artikel und gib Menge und Preis an.
 2. Sende dein Angebot ab.
 3. Wir prüfen es; du erhältst eine Benachrichtigung bei Annahme, Rückfrage oder Ablehnung.
+
+Tipp: Mit „Weiteres Item hinzufügen“ bietest du mehrere Items in einem Vorgang an, jedes mit eigener Menge und eigenem Preis. Bei einem Gegenangebot von uns passt du Menge und Preis jeder Position an.
 
 Tipp: Fehlt ein Artikel in der Liste, kannst du — wenn dein Zugang es erlaubt — „Sonstiges“ mit eigenem Namen angeben.`),
   ] },

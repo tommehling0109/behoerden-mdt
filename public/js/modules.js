@@ -9,6 +9,8 @@ export const NAV = [
     section: 'Übersicht',
     items: [
       { id: 'dashboard', label: 'Dashboard', subtitle: 'Aktuelle Lage auf einen Blick', icon: 'dashboard', path: '/dashboard', win: { w: 1040, h: 660 }, view: () => import('./views/dashboard.js') },
+      { id: 'schedule', label: 'Termine & Aufträge', subtitle: 'Kalender, Termine und Aufträge für Mitglieder', icon: 'calendar', path: '/schedule', perm: ['schedule.view'], win: { w: 1180, h: 720 }, view: () => import('./views/schedule.js'), badge: 'scheduleOpen' },
+      { id: 'activity', label: 'Aktivität & Abmeldung', subtitle: 'Wer ist aktiv – und Abmeldung bei Urlaub oder Pause', icon: 'activity', path: '/activity', perm: ['activity.absence', 'activity.view'], win: { w: 1080, h: 680 }, view: () => import('./views/activity.js') },
       { id: 'help', label: 'Hilfe', subtitle: 'Anleitungen passend zu deinen Rechten', icon: 'help', path: '/help', win: { w: 1120, h: 700 }, view: () => import('./views/help.js') },
     ],
   },
@@ -48,6 +50,7 @@ export const NAV = [
   {
     section: 'Administration',
     items: [
+      { id: 'onboarding', label: 'Einarbeitung', subtitle: 'Checkliste für neue Mitglieder', icon: 'userCheck', path: '/onboarding', perm: ['onboarding.check', 'onboarding.manage'], win: { w: 1080, h: 680 }, view: () => import('./views/onboarding.js') },
       { id: 'users', label: 'Benutzer', subtitle: 'Zugänge verwalten und freischalten', icon: 'users', path: '/admin/users', perm: ['users.view'], win: { w: 1020, h: 640 }, view: () => import('./views/admin/users.js'), badge: 'pendingUsers' },
       { id: 'roles', label: 'Rollen & Rechte', subtitle: 'Rollen definieren und Berechtigungen zuweisen', icon: 'shield', path: '/admin/roles', perm: ['roles.view'], view: () => import('./views/admin/roles.js') },
       { id: 'org', label: 'Organisation', subtitle: 'Ränge, Abteilungen und Hierarchie', icon: 'sitemap', path: '/admin/org', perm: ['org.view'], win: { w: 1020, h: 640 }, view: () => import('./views/admin/org.js') },
@@ -58,6 +61,45 @@ export const NAV = [
     ],
   },
 ];
+
+/**
+ * Dock-Gruppen („Ordner“ wie auf dem Handy): mehrere Apps teilen sich ein Symbol im Dock; ein Klick öffnet die Auswahl.
+ * Apps, die in keiner Gruppe stehen (Dashboard, Hilfe, Legal …), bleiben einzelne Symbole – neue Apps erscheinen so automatisch im Dock
+ * und lassen sich hier bei Bedarf einer Gruppe zuordnen. Eine Gruppe mit nur einer sichtbaren App zeigt direkt diese App.
+ * Die Reihenfolge im Dock folgt der Navigation: eine Gruppe steht dort, wo ihre erste App steht.
+ */
+export const DOCK_GROUPS = [
+  { id: 'trade', label: 'Handel & Lager', items: ['trade', 'market', 'warehouse'] },
+  { id: 'ops', label: 'Einsatz', items: ['map', 'vehicles'] },
+  { id: 'money', label: 'Finanzen', items: ['finance', 'stats', 'credit', 'tab'] },
+  { id: 'comm', label: 'Kommunikation', items: ['chat', 'tickets', 'contacts'] },
+  { id: 'admin', label: 'Verwaltung', items: ['users', 'onboarding', 'roles', 'org', 'partners'] },
+  { id: 'system', label: 'System', items: ['lookups', 'config', 'audit'] },
+];
+
+/** Standard-Anordnung des Docks (wenn der Administrator nichts eingestellt hat): Einträge { app } bzw. { gid, label, items }, in Navigationsreihenfolge. */
+export function defaultDockLayout(nav = NAV) {
+  const items = allItems(nav), ids = new Set(items.map((i) => i.id)), seen = new Set(), out = [];
+  for (const it of items) {
+    const g = DOCK_GROUPS.find((x) => x.items.includes(it.id));
+    if (!g) { out.push({ app: it.id }); continue; }
+    if (seen.has(g.id)) continue; seen.add(g.id);
+    out.push({ gid: g.id, label: g.label, items: g.items.filter((id) => ids.has(id)) });
+  }
+  return out;
+}
+
+/** Layout + sichtbare Apps → Dock-Einträge ([{ app }] oder [{ group:{id,label}, items }]). Unbekannte/unsichtbare Apps entfallen, Gruppen mit nur einer sichtbaren App zeigen diese direkt, nicht erwähnte Apps (neue) kommen ans Ende. */
+export function resolveDock(layout, visible) {
+  const byId = new Map(visible.map((i) => [i.id, i])), used = new Set(), out = [];
+  for (const e of layout) {
+    if (e.app) { const it = byId.get(e.app); if (it && !used.has(it.id)) { used.add(it.id); out.push({ app: it }); } continue; }
+    const items = (e.items ?? []).map((id) => byId.get(id)).filter((it) => it && !used.has(it.id)); items.forEach((i) => used.add(i.id));
+    if (items.length > 1) out.push({ group: { id: e.gid, label: e.label }, items }); else if (items.length === 1) out.push({ app: items[0] });
+  }
+  for (const it of visible) if (!used.has(it.id)) out.push({ app: it });
+  return out;
+}
 
 export const DEFAULT_PATH = '/dashboard';
 export const allItems = (nav = NAV) => nav.flatMap((s) => s.items);

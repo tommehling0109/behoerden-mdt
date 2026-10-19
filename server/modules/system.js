@@ -38,9 +38,24 @@ export function sessionCookie(ctx, token, expires) {
 }
 
 /** Apps, die sich für alle abschalten lassen → Beginn ihrer API-Pfade (Verwaltungs-Apps und die Konfiguration bleiben immer verfügbar). */
+/** Dock-Anordnung: Liste aus einzelnen Apps ({ app }) und Gruppen ({ gid, label, items }); leer = Standard. Jede App höchstens einmal. */
+const APP_ID = /^[a-z][a-z0-9_-]{0,30}$/;
+function validDockLayout(v) {
+  if (!Array.isArray(v) || v.length > 60) return false;
+  const seen = new Set(); let n = 0;
+  const take = (id) => { if (typeof id !== 'string' || !APP_ID.test(id) || seen.has(id) || ++n > 80) return false; seen.add(id); return true; };
+  for (const e of v) {
+    if (!e || typeof e !== 'object' || Array.isArray(e)) return false;
+    if (e.app !== undefined) { if (Object.keys(e).length !== 1 || !take(e.app)) return false; continue; }
+    if (Object.keys(e).sort().join() !== 'gid,items,label' || typeof e.gid !== 'string' || !/^[A-Za-z0-9_-]{1,24}$/.test(e.gid) || typeof e.label !== 'string' || !e.label.trim() || e.label.length > 30) return false;
+    if (!Array.isArray(e.items) || !e.items.length || e.items.length > 30 || !e.items.every(take)) return false;
+  }
+  return new Set(v.filter((e) => e.gid).map((e) => e.gid)).size === v.filter((e) => e.gid).length;
+}
+
 export const DISABLEABLE_APPS = {
   dashboard: ['dashboard'], market: ['market'], map: ['map'], warehouse: ['warehouse', 'warehouses'], vehicles: ['vehicles'], finance: ['finance'], stats: ['stats'], credit: ['credit'],
-  tab: ['tab'], tickets: ['tickets'], legal: ['legal'], contacts: ['contacts'], chat: ['chat'], help: ['help'],
+  tab: ['tab'], tickets: ['tickets'], legal: ['legal'], contacts: ['contacts'], chat: ['chat'], help: ['help'], schedule: ['schedule'], activity: ['activity'], onboarding: ['onboarding'],
 };
 export default {
   name: 'system',
@@ -77,6 +92,7 @@ export default {
     { key: 'system.update_repo', group: 'Updates', label: 'GitHub-Repository', help: 'Format: besitzer/name', type: 'string', default: 'tommehling0109/mdt-template', max: 100 },
     { key: 'ui.show_watermark', group: 'Darstellung', label: 'Logo-Wasserzeichen im Hintergrund', type: 'bool', default: true, public: true },
     { key: 'security.lock_timeout_minutes', group: 'Zugang', label: 'Sperrbildschirm nach Inaktivität (Minuten)', help: 'Nach dieser Zeit ohne Eingabe wird der Bildschirm gesperrt; Entsperren per Passwort bzw. Code. 0 = aus.', type: 'number', default: 10, min: 0, max: 1440, public: true },
+    { key: 'ui.dock_layout', group: 'Dock', label: 'Dock-Anordnung', help: 'Anordnung und Gruppen der Apps im Dock – einstellbar unter Konfiguration → Dock.', type: 'json', default: [], hidden: true, public: true, perm: 'system.apps', validate: validDockLayout },
     { key: 'ui.halloween', group: 'Darstellung', label: 'Halloween-Design', help: 'Schaltet das Halloween-Design für ALLE ein: Orange/Violett, „Happy Halloween“-Schriftzug, Kürbisse, Lichterkette, Mond, Nebel, Fledermäuse und Geist im Hintergrund. Nur der Superadmin kann es ein- und ausschalten.', type: 'bool', default: false, public: true, perm: 'system.apps' },
     { key: 'ui.desktop_icons', group: 'Darstellung', label: 'Desktop-Symbole anzeigen', help: 'Voreinstellung für alle: zeigt die Apps zusätzlich als Symbole auf dem Desktop (das Dock unten bleibt immer sichtbar). Jeder kann das für sich unter Einstellungen (Zahnrad) ändern.', type: 'bool', default: false, public: true },
     { key: 'ui.desktop_icons_partner', group: 'Darstellung', label: 'Desktop-Symbole für externe Zugänge', help: 'Voreinstellung nur für externe Zugänge: wie bei allen (siehe oben), immer anzeigen oder ausblenden. Jeder Zugang kann das für sich unter Einstellungen (Zahnrad) ändern.', type: 'select', default: 'same', options: [{ value: 'same', label: 'Wie die Voreinstellung für alle' }, { value: 'on', label: 'Anzeigen' }, { value: 'off', label: 'Ausblenden' }], public: true },

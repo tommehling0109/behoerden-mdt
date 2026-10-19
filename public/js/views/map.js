@@ -31,7 +31,7 @@ export default async function render(container, ctx) {
   const SIZE = 256 * 2 ** maxZoom;
   const bounds = imageMode ? L.latLngBounds([[0, 0], [cfg.image.height, cfg.image.width]]) : L.latLngBounds([[0, 0], [SIZE, SIZE]]);
 
-  const state = { points: [], vehicles: [], hidden: new Set(), q: '', showPostals: cfg.showPostals, showVeh: true, layers: [], offLayers: new Set(), placing: false, moving: false };
+  const state = { points: [], vehicles: [], hidden: new Set(), q: '', showPostals: cfg.showPostals, showVeh: true, layers: [], offLayers: new Set(), placing: false, moving: false, zones: [], showZones: true };
   const side = h('aside', { class: 'map-side' });
   const mapEl = h('div', { class: 'map-el' });
   const status = h('div', { class: 'map-bar' }, 'Bewege die Maus über die Karte');
@@ -41,6 +41,7 @@ export default async function render(container, ctx) {
   const crs = L.extend({}, L.CRS.Simple, { transformation: new L.Transformation(1, 0, 1, 0), scale: (z) => 2 ** (z - maxZoom), zoom: (s) => Math.log2(s) + maxZoom });
   const map = L.map(mapEl, { crs, minZoom, maxZoom: maxView, zoomSnap: 0.5, zoomDelta: 0.5, attributionControl: false, maxBounds: bounds.pad(0.1), maxBoundsViscosity: 0.8 });
   const tiles = imageMode ? L.imageOverlay(cfg.image.url, bounds).addTo(map) : L.tileLayer(cfg.tileUrl, { minZoom, maxNativeZoom: maxZoom, maxZoom: maxZoom + 1, tileSize: 256, noWrap: true, bounds, errorTileUrl: '' }).addTo(map);
+  const zoneLayer = L.layerGroup().addTo(map), zoneLabels = L.layerGroup(), draftLayer = L.layerGroup().addTo(map); // Zonen liegen unter den Markern
   const pointLayer = L.layerGroup().addTo(map);
   const vehLayer = L.layerGroup().addTo(map);
   const postalLayer = L.layerGroup();
@@ -114,20 +115,24 @@ export default async function render(container, ctx) {
 
   // ── Waypoints setzen / verschieben ──
   let hint = null;
-  const stopModes = () => { state.placing = false; state.moving = false; hint?.remove(); hint = null; mapEl.classList.remove('placing'); drawTools(); };
-  const setHint = (t) => { hint?.remove(); hint = h('div', { class: 'map-hint' }, t); stage.append(hint); };
+  const stopModes = () => { state.placing = false; state.moving = false; endDraw(); hint?.remove(); hint = null; mapEl.classList.remove('placing'); drawTools(); };
+  const setHint = (t, ...extra) => { hint?.remove(); hint = h('div', { class: 'map-hint' }, t, extra.length > 0 && h('span', { class: 'map-hint-btns' }, extra)); stage.append(hint); };
   function startPlace() { stopModes(); state.placing = true; mapEl.classList.add('placing'); setHint('Klicke auf die Karte, um einen Waypoint zu setzen (Esc = Abbrechen)'); drawTools(); }
   let movingPoint = null;
   function startMove(p) { stopModes(); state.moving = true; movingPoint = p; mapEl.classList.add('placing'); setHint(`„${p.name}“ – klicke auf die neue Position (Esc = Abbrechen)`); drawTools(); }
   map.on('click', async (e) => {
     const g = toGame(e.latlng);
+    if (draw?.mode === 'points') { addDraftPoint(e); return; }
     if (state.placing) { stopModes(); editPoint(null, { x: Math.round(g.x * 10) / 10, y: Math.round(g.y * 10) / 10 }); }
     else if (state.moving && movingPoint) {
       const p = movingPoint; stopModes();
       try { await api.patch(`/api/map/points/${p.id}`, { x: Math.round(g.x * 10) / 10, y: Math.round(g.y * 10) / 10 }); toast('Waypoint verschoben.'); await loadPoints(); } catch (ex) { toast(ex.message, 'err'); }
     }
   });
-  const onKey = (e) => { if (e.key === 'Escape' && (state.placing || state.moving)) stopModes(); };
+  const onKey = (e) => {
+    if (draw && e.target?.tagName !== 'INPUT' && e.target?.tagName !== 'TEXTAREA') { if (e.key === 'Enter') { e.preventDefault(); finishDraw(); return; } if (e.key === 'Backspace') { e.preventDefault(); undoDraft(); return; } }
+    if (e.key === 'Escape' && (state.placing || state.moving || draw)) stopModes();
+  };
   document.addEventListener('keydown', onKey);
 
   function editPoint(p, at) {
@@ -170,7 +175,10 @@ export default async function render(container, ctx) {
   // ── Werkzeuge & Seitenleiste ──
   function drawTools() {
     ctx.setActions(
-      cfg.canEdit && button(state.placing ? 'Abbrechen' : 'Waypoint setzen', { variant: 'primary', icon: state.placing ? 'x' : 'pin', onClick: () => (state.placing || state.moving ? stopModes() : startPlace()) }),
+      cfg.canEdit && button(state.placing || draw ? 'Abbrechen' : 'Waypoint setzen', { variant: 'primary', icon: state.placing || draw ? 'x' : 'pin', onClick: () => (state.placing || state.moving || draw ? stopModes() : startPlace()) }),
+      cfg.canEdit && !draw && button('Zone (Punkte)', { icon: 'target', title: 'Bereich durch Setzen von Eckpunkten einzeichnen', onClick: () => startDraw('points') }),
+      cfg.canEdit && !draw && button('Zone (Freihand)', { icon: 'edit', title: 'Bereich mit gedrückter Maustaste frei einzeichnen', onClick: () => startDraw('free') }),
+      button('Zonen', { icon: 'flag', variant: state.showZones ? 'info' : '', onClick: () => { state.showZones = !state.showZones; drawZones(); drawTools(); } }),
       button('Postleitzahlen', { icon: 'list', variant: state.showPostals ? 'info' : '', onClick: () => { state.showPostals = !state.showPostals; drawPostals(); drawTools(); } }),
       cfg.canVehicles && button('Fahrzeuge', { icon: 'car', variant: state.showVeh ? 'info' : '', onClick: () => { state.showVeh = !state.showVeh; drawVehicles(); drawTools(); } }),
       state.layers.map((l) => button(l.label, { icon: l.icon, variant: state.offLayers.has(l.key) ? '' : 'info', onClick: () => { state.offLayers.has(l.key) ? state.offLayers.delete(l.key) : state.offLayers.add(l.key); drawLayers(); drawTools(); } })));
@@ -190,7 +198,7 @@ export default async function render(container, ctx) {
     const hit = postals.find((p) => String(p[0]) === m[1]);
     if (hit) { goto(hit[1], hit[2]); toast(`Postal ${hit[0]}`); } else toast('Postleitzahl nicht gefunden.', 'err');
   });
-  search.addEventListener('input', () => { state.q = search.value.trim(); drawPoints(); drawList(); });
+  search.addEventListener('input', () => { state.q = search.value.trim(); drawPoints(); drawZones(); drawList(); });
 
   function drawList() {
     const q = state.q.toLowerCase();
@@ -201,17 +209,124 @@ export default async function render(container, ctx) {
       b.addEventListener('click', () => { off ? state.hidden.delete(c.id) : state.hidden.add(c.id); drawPoints(); drawList(); });
       return b;
     }));
-    mount(list, items.length ? items.map((p) => {
+    const zs = state.zones.filter((z) => state.showZones && (!q || `${z.name} ${z.description}`.toLowerCase().includes(q)));
+    const zoneRows = zs.length ? [h('div', { class: 'ms-sec' }, 'Zonen'), ...zs.map((z) => { const el = h('div', { class: 'ms-item' }, h('div', { class: 'mi zone', style: { '--c': z.color } }, icon('flag')), h('div', { style: { minWidth: 0 } }, h('div', { class: 'mt' }, z.name), h('div', { class: 'ms' }, z.kind?.label ?? 'Zone'))); el.addEventListener('click', () => { map.fitBounds(zoneShapes.get(z.id).getBounds().pad(0.3), { animate: true }); zoneShapes.get(z.id).openPopup(); }); return el; })] : [];
+    mount(list, items.length || zoneRows.length ? [...(items.length ? [items.length && zoneRows.length ? h('div', { class: 'ms-sec' }, 'Waypoints') : null] : []), ...items.map((p) => {
       const el = h('div', { class: 'ms-item' }, h('div', { class: 'mi', style: { '--c': p.color } }, icon(p.icon)), h('div', { style: { minWidth: 0 } }, h('div', { class: 'mt' }, p.name), h('div', { class: 'ms' }, p.category?.label ?? 'Ohne Kategorie')));
       el.addEventListener('click', () => { goto(p.x, p.y); markers.get(p.id)?.openPopup(); });
       return el;
-    }) : h('div', { class: 'ms', style: { padding: '16px', color: 'var(--text-3)' } }, state.points.length ? 'Keine Treffer.' : cfg.canEdit ? 'Noch keine Waypoints. Setze den ersten über „Waypoint setzen“.' : 'Noch keine Waypoints.'));
+    }), ...zoneRows] : h('div', { class: 'ms', style: { padding: '16px', color: 'var(--text-3)' } }, state.points.length ? 'Keine Treffer.' : cfg.canEdit ? 'Noch keine Waypoints. Setze den ersten über „Waypoint setzen“.' : 'Noch keine Waypoints.'));
   }
 
   async function loadPoints() {
     try { state.points = (await api.get('/api/map/points')).points; } catch (e) { return toast(e.message, 'err'); }
     drawPoints(); drawList();
   }
+  // ── Zonen: Anzeige ──
+  const zoneShapes = new Map();
+  const zonePopup = (z) => {
+    const el = h('div');
+    el.innerHTML = `<div class="pop-title">${esc(z.name)}</div>${z.kind ? `<span class="badge" style="--c:${esc(z.kind.color)}">${esc(z.kind.label)}</span>` : ''}${notesHtml(z.description)}<div class="pop-kv">Zone mit ${z.points.length} Punkten${z.visibility === 'editors' ? ' · nur Bearbeiter' : ''}</div>`;
+    if (cfg.canEdit) el.append(h('div', { class: 'pop-actions' }, button('Bearbeiten', { size: 'sm', icon: 'edit', onClick: () => { map.closePopup(); zoneDialog(z); } })));
+    return el;
+  };
+  function drawZones() {
+    zoneLayer.clearLayers(); zoneLabels.clearLayers(); zoneShapes.clear();
+    if (!state.showZones) { map.removeLayer(zoneLabels); return; }
+    const q = state.q.toLowerCase();
+    for (const z of state.zones) {
+      if (q && !`${z.name} ${z.description}`.toLowerCase().includes(q)) continue;
+      const poly = L.polygon(z.points.map(([x, y]) => toLL(x, y)), { color: z.color, weight: 2, opacity: 0.95, fillColor: z.color, fillOpacity: z.opacity, dashArray: z.kind?.key === 'danger' ? '9 6' : null, lineJoin: 'round' }).bindPopup(() => zonePopup(z)).bindTooltip(z.name, { sticky: true, direction: 'top', opacity: 0.95 });
+      poly.addTo(zoneLayer); zoneShapes.set(z.id, poly);
+      L.marker(poly.getBounds().getCenter(), { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [0, 0], html: `<div class="zone-label" style="--c:${esc(z.color)}">${esc(z.name)}</div>` }) }).addTo(zoneLabels);
+    }
+    updateZoneLabels();
+  }
+  const updateZoneLabels = () => { const show = state.showZones && map.getZoom() >= (imageMode ? -1 : maxZoom - 3); if (show && !map.hasLayer(zoneLabels)) zoneLabels.addTo(map); else if (!show && map.hasLayer(zoneLabels)) map.removeLayer(zoneLabels); };
+  map.on('zoomend', updateZoneLabels);
+  async function loadZones() {
+    try { state.zones = (await api.get('/api/map/zones')).zones; } catch (e) { return toast(e.message, 'err'); }
+    drawZones(); drawList();
+  }
+
+  // ── Zonen: Einzeichnen (Punkte setzen oder frei mit gedrückter Maustaste) ──
+  let draw = null;
+  const px = (ll) => map.latLngToContainerPoint(ll);
+  function redrawDraft() {
+    draftLayer.clearLayers(); if (!draw) return;
+    const pts = draw.pts, col = '#fbbf24';
+    if (pts.length >= 3) L.polygon(pts, { color: col, weight: 2, dashArray: '6 6', fillColor: col, fillOpacity: 0.15, interactive: false }).addTo(draftLayer); else if (pts.length === 2) L.polyline(pts, { color: col, weight: 2, dashArray: '6 6', interactive: false }).addTo(draftLayer);
+    if (draw.mode === 'points') pts.forEach((p, i) => L.circleMarker(p, { radius: i === 0 ? 7 : 4, color: '#fff', weight: 2, fillColor: i === 0 ? '#22c55e' : col, fillOpacity: 1, interactive: false }).addTo(draftLayer));
+  }
+  function startDraw(mode, redraw = null) {
+    stopModes(); draw = { mode, pts: [], redraw, down: false };
+    mapEl.classList.add('placing', 'drawing'); map.doubleClickZoom.disable();
+    const done = button('Fertig', { size: 'sm', variant: 'primary', icon: 'check', onClick: () => finishDraw() }), back = button('Zurück', { size: 'sm', icon: 'reply', onClick: () => undoDraft() }), cancel = button('Abbrechen', { size: 'sm', icon: 'x', onClick: () => stopModes() });
+    if (mode === 'free') { map.dragging.disable(); setHint(redraw ? `Neue Form für „${redraw.name}“: Maustaste gedrückt halten und den Bereich einzeichnen` : 'Maustaste gedrückt halten und den Bereich frei einzeichnen – beim Loslassen wird die Form geschlossen', cancel); }
+    else setHint(redraw ? `Neue Form für „${redraw.name}“: Eckpunkte anklicken` : 'Eckpunkte anklicken · Doppelklick, Enter oder „Fertig“ schließt die Form · Rücktaste = Punkt zurück', back, done, cancel);
+    drawTools();
+  }
+  function endDraw() {
+    if (!draw) return; draw = null; draftLayer.clearLayers(); mapEl.classList.remove('drawing'); map.dragging.enable(); map.doubleClickZoom.enable();
+  }
+  function addDraftPoint(e) {
+    const last = draw.pts[draw.pts.length - 1];
+    if (draw.pts.length >= 3 && px(e.latlng).distanceTo(px(draw.pts[0])) < 12) return finishDraw(); // Klick auf den Startpunkt schließt die Form
+    if (last && px(e.latlng).distanceTo(px(last)) < 3) return;
+    draw.pts.push(e.latlng); redrawDraft();
+  }
+  const undoDraft = () => { if (draw?.pts.length) { draw.pts.pop(); redrawDraft(); } };
+  map.on('dblclick', () => { if (draw?.mode === 'points') finishDraw(); });
+  // Freihand: Zeiger gedrückt halten und ziehen (Maus, Stift oder Finger)
+  mapEl.addEventListener('pointerdown', (e) => { if (draw?.mode !== 'free' || e.button !== 0 || e.target.closest('.leaflet-control, .map-hint')) return; draw.down = true; draw.pts = [map.mouseEventToLatLng(e)]; try { mapEl.setPointerCapture(e.pointerId); } catch { /* egal */ } redrawDraft(); });
+  mapEl.addEventListener('pointermove', (e) => { if (draw?.mode !== 'free' || !draw.down) return; const ll = map.mouseEventToLatLng(e); if (px(ll).distanceTo(px(draw.pts[draw.pts.length - 1])) >= 5) { draw.pts.push(ll); redrawDraft(); } });
+  mapEl.addEventListener('pointerup', () => { if (draw?.mode === 'free' && draw.down) { draw.down = false; if (draw.pts.length < 5) { draw.pts = []; redrawDraft(); toast('Zu kurz – zeichne eine größere Fläche.', 'warn'); } else finishDraw(); } });
+  /** Douglas-Peucker auf Bildschirmpunkten: glättet die Freihandlinie auf wenige Eckpunkte. */
+  function simplify(pts, tol) {
+    if (pts.length < 3) return pts;
+    const P = pts.map(px), keep = new Array(P.length).fill(false); keep[0] = keep[P.length - 1] = true;
+    const seg = (a, b, i0, i1) => { let max = 0, at = -1; for (let i = i0 + 1; i < i1; i++) { const d = L.LineUtil.pointToSegmentDistance(P[i], a, b); if (d > max) { max = d; at = i; } } if (max > tol && at > 0) { keep[at] = true; seg(a, P[at], i0, at); seg(P[at], b, at, i1); } };
+    seg(P[0], P[P.length - 1], 0, P.length - 1);
+    return pts.filter((_, i) => keep[i]);
+  }
+  function finishDraw() {
+    if (!draw) return;
+    let pts = draw.pts; const redraw = draw.redraw, mode = draw.mode;
+    if (mode === 'free') { let tol = 2.5, out = simplify(pts, tol); while (out.length > 300 && tol < 80) out = simplify(pts, (tol *= 1.5)); pts = out; }
+    pts = pts.filter((p, i) => i === 0 || px(p).distanceTo(px(pts[i - 1])) >= 2);
+    if (pts.length < 3) { toast('Mindestens drei Punkte nötig.', 'warn'); return; }
+    const game = pts.map((ll) => { const g = toGame(ll); return [Math.round(g.x * 10) / 10, Math.round(g.y * 10) / 10]; });
+    stopModes(); zoneDialog(redraw, game);
+  }
+
+  function zoneDialog(z, pts) {
+    const err = h('div'), name = input({ value: z?.name ?? '', maxLength: 80, placeholder: 'z. B. Gefahrenzone Hafen' });
+    const kind = select([{ value: '', label: '— keine —' }, ...cfg.zoneKinds.map((k) => ({ value: k.id, label: k.label }))], z?.kind?.id ?? cfg.zoneKinds.find((k) => k.key === 'danger')?.id ?? '');
+    let colorSel = z?.ownColor ?? '';
+    const colorRow = h('div', { class: 'chips' });
+    const drawColors = () => mount(colorRow, [h('button', { type: 'button', class: `btn btn-sm ${colorSel === '' ? 'btn-primary' : ''}`, onclick: () => { colorSel = ''; drawColors(); } }, 'Farbe der Art'), ...COLORS.map((c) => h('button', { type: 'button', title: c, style: { width: '26px', height: '26px', borderRadius: '50%', background: c, border: colorSel === c ? '3px solid #fff' : '2px solid transparent', cursor: 'pointer' }, onclick: () => { colorSel = c; drawColors(); } }))]);
+    drawColors();
+    const op = h('input', { type: 'range', min: 5, max: 70, step: 5, value: Math.round((z?.opacity ?? 0.25) * 100), class: 'range', 'aria-label': 'Deckkraft' }), opLabel = h('span', { class: 'range-val' }, `${op.value} %`);
+    op.addEventListener('input', () => { opLabel.textContent = `${op.value} %`; });
+    const notes = h('textarea', { class: 'textarea', rows: 4, maxLength: 1500, placeholder: '- z. B. Bewaffnete Gruppen\n- Nur mit Begleitung' }, z?.description ?? '');
+    const vis = select([{ value: 'all', label: 'Alle mit Kartenzugriff' }, { value: 'editors', label: 'Nur Bearbeiter' }], z?.visibility ?? 'all');
+    const count = (pts ?? z?.points ?? []).length;
+    const body = h('div', null, err, field('Name', name), h('div', { class: 'form-row' }, field('Art', kind), field('Sichtbarkeit', vis)), field('Farbe', colorRow), field('Deckkraft der Fläche', h('div', { class: 'row', style: { flexWrap: 'nowrap', alignItems: 'center' } }, op, opLabel)),
+      field('Notizen (Stichpunkte mit „- “)', notes), h('div', { class: 'muted', style: { fontSize: '12.5px' } }, `Form: ${count} Eckpunkte${pts && z ? ' (neu gezeichnet)' : ''}`));
+    const footer = [];
+    if (z) {
+      footer.push(button('Löschen', { variant: 'danger', icon: 'trash', onClick: async () => { if (!await confirmDialog({ title: 'Zone löschen?', message: `„${z.name}“ wird entfernt.`, confirmLabel: 'Löschen' })) return; try { await api.del(`/api/map/zones/${z.id}`); m.close(); toast('Zone gelöscht.'); loadZones(); } catch (e) { toast(e.message, 'err'); } } }));
+      footer.push(button('Form neu zeichnen', { icon: 'edit', onClick: () => { m.close(); startDraw('free', z); } }));
+    }
+    footer.push(h('span', { class: 'grow' }), button('Abbrechen', { onClick: () => m.close() }), button(z ? 'Speichern' : 'Zone anlegen', { variant: 'primary', icon: 'check', onClick: (e) => busy(e.currentTarget, async () => {
+      const payload = { name: name.value, kindId: kind.value ? Number(kind.value) : null, color: colorSel || null, opacity: Number(op.value) / 100, description: notes.value, visibility: vis.value };
+      if (pts) payload.points = pts; else if (!z) return;
+      try { z ? await api.patch(`/api/map/zones/${z.id}`, payload) : await api.post('/api/map/zones', payload); m.close(); toast(z ? 'Zone gespeichert.' : 'Zone angelegt.'); loadZones(); }
+      catch (ex) { err.replaceChildren(formError(ex.message)); }
+    }) }));
+    const m = openModal({ title: z ? 'Zone bearbeiten' : 'Neue Zone', body, footer });
+  }
+
   async function loadVehicles() {
     if (!cfg.canVehicles) return;
     try { state.vehicles = (await api.get('/api/map/vehicles')).vehicles; } catch { state.vehicles = []; }
@@ -239,7 +354,7 @@ export default async function render(container, ctx) {
   }
 
   drawTools();
-  await Promise.all([loadPoints(), loadVehicles(), loadLayers()]);
+  await Promise.all([loadPoints(), loadZones(), loadVehicles(), loadLayers()]);
   if (state.showPostals) drawPostals();
 
   // Fokus aus der Fahrzeugverwaltung (auch wenn die Karte schon offen ist)
@@ -255,8 +370,8 @@ export default async function render(container, ctx) {
   window.addEventListener('mdt:map-focus', applyFocus);
   applyFocus();
 
-  ctx.live(['map'], loadPoints, { wait: 200 });
+  ctx.live(['map'], () => { loadPoints(); loadZones(); }, { wait: 200 });
   ctx.live(['vehicles'], loadVehicles, { wait: 300 });
-  ctx.live(['lookups'], async () => { try { cfg = { ...cfg, categories: (await api.get('/api/map/config')).categories }; drawList(); } catch { /* egal */ } }, { wait: 300 });
+  ctx.live(['lookups'], async () => { try { const c2 = await api.get('/api/map/config'); cfg = { ...cfg, categories: c2.categories, zoneKinds: c2.zoneKinds }; drawList(); } catch { /* egal */ } }, { wait: 300 });
   return () => { ro.disconnect(); document.removeEventListener('keydown', onKey); window.removeEventListener('mdt:map-focus', applyFocus); map.remove(); };
 }

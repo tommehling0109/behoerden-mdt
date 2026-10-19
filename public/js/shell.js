@@ -4,7 +4,7 @@ import { h, mount, timeAgo } from './ui/dom.js';
 import { icon } from './ui/icons.js';
 import { avatar, userAvatar, skeletons, empty, toast, button, toggle, levelBadge } from './ui/kit.js';
 import { state, canAny, can, applyConfig } from './state.js';
-import { NAV, allItems } from './modules.js';
+import { NAV, allItems, defaultDockLayout, resolveDock } from './modules.js';
 import { openAccountDialog } from './views/account.js';
 import { openSettingsDialog } from './views/settings.js';
 import { openLevelDialog } from './views/partner/level.js';
@@ -74,7 +74,9 @@ export async function openTarget(target) {
   if (target.partnerTicket) { const m = await import('./views/tickets.js'); return m.openPartnerTickets({ open: target.partnerTicket }); }
   if (target.app === 'tickets' && target.ticketId) { try { sessionStorage.setItem('mdt:tickets:open', String(target.ticketId)); } catch { /* egal */ } }
   if (target.app === 'credit' && target.loanId) { try { sessionStorage.setItem('mdt:credit:open', String(target.loanId)); } catch { /* egal */ } }
+  if (target.app === 'schedule' && (target.eventId || target.taskId)) { try { sessionStorage.setItem('mdt:schedule:open', JSON.stringify({ eventId: target.eventId, taskId: target.taskId })); } catch { /* egal */ } }
   if (target.app) ui.open(target.app);
+  if (target.app === 'schedule' && (target.eventId || target.taskId)) window.dispatchEvent(new Event('mdt:schedule-open'));
   if (target.app === 'credit' && target.loanId) window.dispatchEvent(new Event('mdt:credit-open'));
   if (target.app === 'tab' && target.statementId) window.dispatchEvent(new Event('mdt:tab-open'));
   if (target.app === 'tickets' && target.ticketId) window.dispatchEvent(new Event('mdt:tickets-open'));
@@ -89,7 +91,7 @@ export async function openTarget(target) {
   }
 }
 
-const counters = { pendingUsers: 0, marketAwaiting: 0, chatUnread: 0, marketNew: 0, creditAwaiting: 0, creditNew: 0 };
+const counters = { scheduleOpen: 0, pendingUsers: 0, marketAwaiting: 0, chatUnread: 0, marketNew: 0, creditAwaiting: 0, creditNew: 0 };
 let baseTitle = null;
 let partnerMode = false;
 async function refreshCounters() {
@@ -105,6 +107,9 @@ async function refreshCounters() {
   }
   if (can('users.approve') || can('users.view')) {
     try { counters.pendingUsers = (await api.get('/api/users?status=pending')).counts.pending ?? 0; } catch { /* ignorieren */ }
+  }
+  if (can('schedule.view')) {
+    try { counters.scheduleOpen = (await api.get('/api/schedule/summary')).openTasks ?? 0; } catch { /* ignorieren */ }
   }
   if (can('chat.view')) {
     try { counters.chatUnread = (await api.get('/api/chat/unread')).unread ?? 0; } catch { /* ignorieren */ }
@@ -136,6 +141,8 @@ export function showApp(onLogout, opts = {}) {
   const area = h('div', { class: 'desktop-area' });
   const iconsEl = h('div', { class: 'desktop-icons' });
   const dock = h('div', { class: 'dock', role: 'toolbar', 'aria-label': 'Apps' });
+  const dockPop = h('div', { class: 'dock-pop', role: 'menu', hidden: true }); // Auswahl einer Dock-Gruppe (Ordner)
+  let openGroup = null;
   const startMenu = h('div', { class: 'start-menu', hidden: true });
   const startBtn = h('button', { class: 'panel-btn start-btn', type: 'button', title: 'Menü', 'aria-label': 'App-Menü', 'aria-haspopup': 'true' }, h('div', { class: 'logo-phoenix' }));
   let panelAvatar = null, levelSlot = null;
@@ -209,7 +216,7 @@ export function showApp(onLogout, opts = {}) {
         opts.partner ? icon('users') : (panelAvatar = userAvatar(state.user, 'sm')), h('span', null, state.user.displayName), opts.partner && (levelSlot = h('span', { class: 'panel-level' }, levelBadge(state.user.level)))),
       h('button', { class: 'panel-btn', type: 'button', title: 'Abmelden', 'aria-label': 'Abmelden', onclick: () => { clearLockState(); lockCtl?.destroy(); onLogout(); } }, icon('logout'))));
   const ticker = createTicker({ partner: !!opts.partner }); // Laufband zwischen Kopfleiste und Desktop
-  const desktop = h('div', { class: 'desktop' }, panel, ticker.el, area, h('div', { class: 'dock-row' }, dock));
+  const desktop = h('div', { class: 'desktop' }, panel, ticker.el, area, h('div', { class: 'dock-row' }, dockPop, dock));
   const board = !opts.partner && can('board.view') ? createBoard() : null; // Schwarzes Brett: nur für Mitarbeiter
   mount(screen(), h('div', { class: 'wallpaper' }), widget, greet, desktop, startMenu, npanel);
   drawGreet(); window.addEventListener('resize', fitGreet); if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fitGreet).observe(dock);
@@ -256,35 +263,51 @@ export function showApp(onLogout, opts = {}) {
   function placeIcon(b, p) {
     b.style.left = `${p.x}px`; b.style.top = `${p.y}px`;
   }
+  let iconDrag = false, iconPending = false;
   function enableDrag(b, id) {
     b.addEventListener('pointerdown', (e) => {
       if (compact() || e.button !== 0) return;
-      const sx = e.clientX, sy = e.clientY, ox = b.offsetLeft, oy = b.offsetTop; let moved = false;
+      const sx = e.clientX, sy = e.clientY, ox = b.offsetLeft, oy = b.offsetTop; let moved = false, raf = 0, tx = 0, ty = 0;
+      try { b.setPointerCapture(e.pointerId); } catch { /* egal */ } // sofort einfangen: auch schnelle Wischbewegungen verlieren das Symbol nicht
       const mv = (ev) => {
         const dx = ev.clientX - sx, dy = ev.clientY - sy;
         if (!moved && Math.hypot(dx, dy) < 6) return;
-        if (!moved) { moved = true; b.classList.add('dragging'); b.setPointerCapture?.(ev.pointerId); }
+        if (!moved) { moved = true; iconDrag = true; b.classList.add('dragging'); }
         const maxX = iconsEl.clientWidth - b.offsetWidth, maxY = iconsEl.clientHeight - dockH() - b.offsetHeight;
-        b.style.left = `${Math.max(0, Math.min(maxX, ox + dx))}px`; b.style.top = `${Math.max(0, Math.min(maxY, oy + dy))}px`;
+        tx = Math.max(0, Math.min(maxX, ox + dx)) - ox; ty = Math.max(0, Math.min(maxY, oy + dy)) - oy; // per Transform bewegt, am Ende festgeschrieben
+        if (!raf) raf = requestAnimationFrame(() => { raf = 0; b.style.transform = `translate3d(${tx}px, ${ty}px, 0)`; });
       };
       const up = () => {
         b.removeEventListener('pointermove', mv); b.removeEventListener('pointerup', up); b.removeEventListener('pointercancel', up);
         if (!moved) return;
-        b.classList.remove('dragging'); b._dragged = true; setTimeout(() => { b._dragged = false; }, 0);
+        if (raf) cancelAnimationFrame(raf);
+        b._dragged = true; setTimeout(() => { b._dragged = false; }, 0);
         const snap = (v) => Math.round(v / 8) * 8;
-        const x = snap(b.offsetLeft), y = snap(b.offsetTop); b.style.left = `${x}px`; b.style.top = `${y}px`;
-        const pos = loadPos(); pos[id] = { x, y }; savePos(pos); setTimeout(renderIcons, 60);
+        const x = snap(ox + tx), y = snap(oy + ty);
+        // ohne Übergang an die Zielstelle setzen (Transform → left/top), danach die Animation wieder erlauben
+        b.style.transition = 'none'; b.style.transform = ''; b.style.left = `${x}px`; b.style.top = `${y}px`; b.classList.remove('dragging'); void b.offsetWidth; b.style.transition = '';
+        const pos = loadPos(); pos[id] = { x, y }; savePos(pos);
+        iconDrag = false; if (iconPending) { iconPending = false; renderIcons(); } else relayoutIcons();
       };
       b.addEventListener('pointermove', mv); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
     });
   }
+  /** Ordnet vorhandene Symbole neu (sanft, ohne Neuaufbau) – z. B. wenn eine Tafel auf- oder zuklappt oder ein Symbol verschoben wurde. */
+  function relayoutIcons() {
+    if (iconDrag) { iconPending = true; return; }
+    const items = visibleSections().flatMap((s) => s.items);
+    if (compact() || iconsEl.children.length !== items.length) return renderIcons();
+    const lay = layoutIcons(items, loadPos());
+    for (const b of iconsEl.children) { const p = lay[b.dataset.id]; if (p) placeIcon(b, p); else return renderIcons(); }
+  }
   function renderIcons() {
+    if (iconDrag) { iconPending = true; return; } // nie mitten im Ziehen neu aufbauen (das Symbol unter dem Zeiger würde ersetzt)
     iconsEl.classList.toggle('free', !compact());
     const pos = loadPos();
     const items = visibleSections().flatMap((s) => s.items), lay = compact() ? {} : layoutIcons(items, pos);
     mount(iconsEl, items.map((i) => {
       const n = i.badge ? counters[i.badge] : 0;
-      const b = h('button', { class: 'desk-icon', type: 'button', title: i.subtitle ?? i.label },
+      const b = h('button', { class: 'desk-icon', type: 'button', 'data-id': i.id, title: i.subtitle ?? i.label },
         h('div', { class: 'di-img' }, icon(i.icon), n > 0 && h('span', { class: 'badge-dot' }, n)), h('span', { class: 'di-label' }, i.label));
       if (!compact()) { placeIcon(b, lay[i.id]); enableDrag(b, i.id); }
       b.addEventListener('click', (e) => {
@@ -300,7 +323,7 @@ export function showApp(onLogout, opts = {}) {
   }
   area.addEventListener('pointerdown', (e) => { if (!e.target.closest?.('.desk-icon')) iconsEl.querySelectorAll('.sel').forEach((x) => x.classList.remove('sel')); });
   // Auf- und Zuklappen der Tafeln (und Inhaltsänderungen) ordnen die Symbole ohne eigene Position neu an
-  if (typeof ResizeObserver !== 'undefined') { let t; const ro = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { if (iconsEl.isConnected) renderIcons(); }, 80); }); [board?.el, changelog?.el, problems?.el, online?.el, area].forEach((e) => e && ro.observe(e)); }
+  if (typeof ResizeObserver !== 'undefined') { let t; const ro = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { if (iconsEl.isConnected) relayoutIcons(); }, 80); }); [board?.el, changelog?.el, problems?.el, online?.el, area].forEach((e) => e && ro.observe(e)); }
   window.addEventListener('mdt:settings', syncIcons);
   window.addEventListener('mdt:config-applied', () => { // Apps wurden (de)aktiviert: offene Fenster schließen, Dock, Startmenü und Symbole aktualisieren
     helpBtn.hidden = !helpOn();
@@ -341,22 +364,58 @@ export function showApp(onLogout, opts = {}) {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !startMenu.hidden) closeStart(); });
 
   // ── Dock ──
+  /** Einträge im Dock: einzelne Apps oder Gruppen („Ordner“) in der vom Administrator eingestellten Reihenfolge; eine Gruppe mit nur einer sichtbaren App zeigt direkt diese App. */
+  function dockEntries() {
+    const vis = visibleSections().flatMap((sec) => sec.items);
+    if (opts.partner) return vis.map((app) => ({ app }));
+    const saved = state.config['ui.dock_layout']; // vom Administrator eingestellt (Konfiguration → Dock) – sonst Standard
+    return resolveDock(Array.isArray(saved) && saved.length ? saved : defaultDockLayout(), vis);
+  }
+  const badgeOf = (i) => (i.badge ? counters[i.badge] : 0);
+  /** Klick auf eine App im Dock: öffnen, zurückholen, in den Vordergrund oder minimieren. */
+  function activate(id) {
+    const w = wins.get(id);
+    if (!w) open(id);
+    else if (w.min) { restore(id); focus(id); }
+    else if (activeId === id) minimize(id);
+    else focus(id);
+  }
+  function closePop() { if (openGroup === null) return; openGroup = null; dockPop.hidden = true; dock.querySelector('.dock-folder.open')?.classList.remove('open'); }
+  function drawPop() {
+    const e = openGroup && dockEntries().find((x) => x.group?.id === openGroup), btn = e && dock.querySelector(`[data-group="${openGroup}"]`);
+    if (!e || !btn) return closePop();
+    mount(dockPop, h('div', { class: 'dp-title' }, e.group.label), h('div', { class: 'dp-grid' }, e.items.map((i) => {
+      const w = wins.get(i.id), n = badgeOf(i);
+      const b = h('button', { class: ['dp-item', w && 'running', w && !w.min && activeId === i.id && 'active', w?.min && 'minimized'].filter(Boolean).join(' '), type: 'button', role: 'menuitem', title: i.label },
+        h('div', { class: 'dock-img' }, icon(i.icon)), h('span', { class: 'dp-l' }, i.label), n > 0 && h('span', { class: 'badge-dot' }, n));
+      b.addEventListener('click', () => { const was = wins.has(i.id) && !wins.get(i.id).min && activeId === i.id; closePop(); if (was) focus(i.id); else activate(i.id); }); // aus der Auswahl heraus nie „minimieren“
+      return b;
+    })));
+    btn.classList.add('open'); dockPop.hidden = false;
+    const row = dockPop.parentElement.getBoundingClientRect(), r = btn.getBoundingClientRect(), half = dockPop.offsetWidth / 2;
+    dockPop.style.left = `${Math.max(half + 8, Math.min(row.width - half - 8, r.left + r.width / 2 - row.left))}px`;
+  }
+  document.addEventListener('pointerdown', (e) => { if (openGroup !== null && !dockPop.contains(e.target) && !e.target.closest?.('.dock-folder')) closePop(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openGroup !== null) closePop(); });
+
   function renderTasks() {
-    const items = visibleSections().flatMap((sec) => sec.items);
-    mount(dock, items.map((i) => {
-      const w = wins.get(i.id);
-      const n = i.badge ? counters[i.badge] : 0;
+    mount(dock, dockEntries().map((e) => {
+      if (e.group) { // Ordner: zeigt bis zu vier Mini-Symbole; Zähler/Laufzeit-Marker fassen die enthaltenen Apps zusammen
+        const ws = e.items.map((i) => wins.get(i.id)).filter(Boolean), n = e.items.reduce((a, i) => a + badgeOf(i), 0);
+        const cls = ['dock-item', 'dock-folder', ws.length && 'running', ws.some((w) => !w.min && activeId === w.id) && 'active', e.group.id === openGroup && 'open'].filter(Boolean).join(' ');
+        const b = h('button', { class: cls, type: 'button', 'data-label': e.group.label, 'data-group': e.group.id, 'aria-label': e.group.label, 'aria-haspopup': 'menu' },
+          h('div', { class: 'dock-img dock-folder-img' }, e.items.slice(0, 4).map((i) => h('span', { class: 'dock-mini' }, icon(i.icon)))), n > 0 && h('span', { class: 'badge-dot' }, n));
+        b.addEventListener('click', () => { if (openGroup === e.group.id) return closePop(); startMenu.hidden = true; startBtn.classList.remove('open'); openGroup = e.group.id; drawPop(); });
+        return b;
+      }
+      const i = e.app, w = wins.get(i.id), n = badgeOf(i);
       const cls = ['dock-item', w && 'running', w && !w.min && activeId === i.id && 'active', w?.min && 'minimized'].filter(Boolean).join(' ');
       const b = h('button', { class: cls, type: 'button', 'data-label': i.label, 'aria-label': i.label },
         h('div', { class: 'dock-img' }, icon(i.icon)), n > 0 && h('span', { class: 'badge-dot' }, n));
-      b.addEventListener('click', () => {
-        if (!w) open(i.id);
-        else if (w.min) { restore(i.id); focus(i.id); }
-        else if (activeId === i.id) minimize(i.id);
-        else focus(i.id);
-      });
+      b.addEventListener('click', () => { closePop(); activate(i.id); });
       return b;
     }));
+    if (openGroup !== null) drawPop();
   }
 
   // ── Fenster ──
@@ -374,9 +433,20 @@ export function showApp(onLogout, opts = {}) {
     for (const o of wins.values()) o.el.classList.remove('active');
     if (top) focus(top.id); else renderTasks();
   }
-  function minimize(id) { const w = wins.get(id); if (!w) return; w.min = true; w.el.classList.add('min'); focusTop(); }
-  function restore(id) { const w = wins.get(id); if (!w) return; w.min = false; w.el.classList.remove('min'); fit(w); }
-  function toggleMax(id) { const w = wins.get(id); if (!w) return; w.max = !w.max; w.el.classList.toggle('max', w.max); updateMaxIcon(w); if (!w.max) fit(w); }
+  // Animationen über die Web-Animations-API: sie ändern nichts an den CSS-Klassen und lösen daher nie die Öffnen-Animation erneut aus
+  const motion = () => !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function minimize(id) {
+    const w = wins.get(id); if (!w || w.min) return; w.min = true; focusTop();
+    if (!motion() || !w.el.animate) return w.el.classList.add('min');
+    w.anim?.cancel(); const anim = w.anim = w.el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(26px) scale(0.94)' }], { duration: 170, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' });
+    const done = () => { if (w.anim !== anim) return; w.anim = null; if (w.min) w.el.classList.add('min'); anim.cancel(); };
+    anim.onfinish = done; setTimeout(done, 230); // Rückfall, falls das Bild gerade nicht gezeichnet wird (Tab im Hintergrund)
+  }
+  function restore(id) { const w = wins.get(id); if (!w) return; w.anim?.cancel(); w.anim = null; w.min = false; w.el.classList.remove('min'); fit(w); }
+  function toggleMax(id) {
+    const w = wins.get(id); if (!w) return; w.max = !w.max; w.el.classList.toggle('max', w.max); updateMaxIcon(w); if (!w.max) fit(w);
+    if (motion() && w.el.animate) w.el.animate([{ opacity: 0.86, transform: 'scale(0.985)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' });
+  }
   function updateMaxIcon(w) { mount(w.maxBtn, icon(w.max ? 'restore' : 'maximize')); w.maxBtn.title = w.max ? 'Verkleinern' : 'Maximieren'; }
   function close(id) {
     const w = wins.get(id);
@@ -404,14 +474,22 @@ export function showApp(onLogout, opts = {}) {
     const bar = e.currentTarget;
     const a = area.getBoundingClientRect();
     const r = w.el.getBoundingClientRect();
-    const dx = e.clientX - r.left, dy = e.clientY - r.top;
+    const dx = e.clientX - r.left, dy = e.clientY - r.top, L0 = w.el.offsetLeft, T0 = w.el.offsetTop;
+    let started = false, raf = 0, nx = L0, ny = T0;
     bar.setPointerCapture(e.pointerId);
+    // Beim Ziehen wird das Fenster per Transform (GPU) bewegt und erst beim Loslassen auf left/top festgeschrieben: kein Neuberechnen des Inhalts, keine Sprünge
+    const paint = () => { raf = 0; w.el.style.transform = `translate3d(${nx - L0}px, ${ny - T0}px, 0)`; };
     const move = (ev) => {
       // Titelleiste bleibt immer erreichbar: mindestens 120 px des Fensters bleiben sichtbar
-      w.el.style.left = `${clamp(ev.clientX - dx - a.left, 120 - r.width, a.width - 120)}px`;
-      w.el.style.top = `${clamp(ev.clientY - dy - a.top, 0, a.height - 44)}px`;
+      const x = clamp(ev.clientX - dx - a.left, 120 - r.width, a.width - 120), y = clamp(ev.clientY - dy - a.top, 0, a.height - 44);
+      if (!started) { if (Math.hypot(x - L0, y - T0) < 3) return; started = true; w.el.classList.add('dragging'); document.documentElement.classList.add('is-dragging'); }
+      nx = x; ny = y; if (!raf) raf = requestAnimationFrame(paint);
     };
-    const up = () => { bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up); };
+    const up = () => {
+      bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up);
+      if (raf) cancelAnimationFrame(raf);
+      if (started) { w.el.style.left = `${nx}px`; w.el.style.top = `${ny}px`; w.el.style.transform = ''; w.el.classList.remove('dragging'); document.documentElement.classList.remove('is-dragging'); }
+    };
     bar.addEventListener('pointermove', move);
     bar.addEventListener('pointerup', up);
     bar.addEventListener('pointercancel', up);
@@ -428,7 +506,9 @@ export function showApp(onLogout, opts = {}) {
     const minW = Math.min(360, a.width), minH = Math.min(240, a.height);
     const sx = e.clientX, sy = e.clientY;
     handle.setPointerCapture(e.pointerId);
-    const move = (ev) => {
+    let raf = 0, last = null; w.el.classList.add('resizing'); document.documentElement.classList.add('is-dragging');
+    const move = (ev) => { last = ev; if (!raf) raf = requestAnimationFrame(() => { raf = 0; step(last); }); };
+    const step = (ev) => {
       const dx = ev.clientX - sx, dy = ev.clientY - sy;
       let L = L0, T = T0, W = W0, H = H0;
       if (dir.includes('e')) W = clamp(W0 + dx, minW, a.width - L0);
@@ -437,7 +517,7 @@ export function showApp(onLogout, opts = {}) {
       if (dir.includes('n')) { H = clamp(H0 - dy, minH, T0 + H0); T = T0 + H0 - H; }
       Object.assign(w.el.style, { left: `${L}px`, top: `${T}px`, width: `${W}px`, height: `${H}px` });
     };
-    const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); };
+    const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); if (raf) { cancelAnimationFrame(raf); step(last); } w.el.classList.remove('resizing'); document.documentElement.classList.remove('is-dragging'); };
     handle.addEventListener('pointermove', move);
     handle.addEventListener('pointerup', up);
     handle.addEventListener('pointercancel', up);
@@ -537,7 +617,7 @@ export function showApp(onLogout, opts = {}) {
   if (!opts.partner) subscribe(['profile'], async () => { // eigenes Profilbild geändert/entfernt (auch durch einen Admin) → Kopfzeile sofort aktualisieren
     try { const { user } = await api.get('/api/auth/me'); state.user.avatarUrl = user.avatarUrl; const fresh = userAvatar(user, 'sm'); panelAvatar?.replaceWith(fresh); panelAvatar = fresh; } catch { /* egal */ }
   });
-  subscribe(opts.partner ? ['market', 'chat', 'credit'] : ['users', 'market', 'chat', 'credit'], async () => { await refreshCounters(); renderIcons(); if (opts.partner) refreshLevel(); }); // Zähler/Abzeichen live
+  subscribe(opts.partner ? ['market', 'chat', 'credit'] : ['users', 'market', 'chat', 'credit', 'schedule'], async () => { await refreshCounters(); renderIcons(); if (opts.partner) refreshLevel(); }); // Zähler/Abzeichen live
   if (opts.partner) subscribe(['notification', 'partners'], refreshLevel);
   if (!opts.partner) subscribe(['users', 'roles', 'org'], async () => { try { const { user } = await api.get('/api/auth/me'); Object.assign(state.user, { displayName: user.displayName, rank: user.rank, department: user.department, roles: user.roles }); drawGreet(); } catch { /* egal */ } }, { wait: 300 }); // Rang/Abteilung/Rollen im Gruß aktuell halten
   subscribe(['system', 'dashboard'], async () => { applyConfig((await api.get('/api/bootstrap')).config); }); // Farben/Logo/Namen live für alle

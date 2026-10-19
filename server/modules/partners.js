@@ -19,6 +19,27 @@ import { DB_PATH } from '../core/db.js';
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
 
+/**
+ * Bewertung eines Partners aus seinen Börsen-Geschäften: Abschlussquote (abgeschlossen im Verhältnis zu abgeschlossen + storniert + zurückgezogen – Ablehnungen durch uns zählen nicht gegen den Partner),
+ * Umsatz, durchschnittliche Dauer bis zum Abschluss und überfällige Kreditraten. Dazu die Einschätzung der Führung (Sterne + interne Notiz).
+ */
+const RATING_LABELS = [[90, 'Sehr zuverlässig', 'ok'], [75, 'Zuverlässig', 'ok'], [50, 'Wechselhaft', 'warn'], [0, 'Unzuverlässig', 'err']];
+function ratingInfo(p) {
+  const c = (st) => get('SELECT COUNT(*) n FROM market_deals WHERE partner_id = ? AND status = ?', p.id, st).n;
+  const completed = c('completed'), cancelled = c('cancelled'), withdrawn = c('withdrawn'), rejected = c('rejected');
+  const total = get('SELECT COUNT(*) n FROM market_deals WHERE partner_id = ?', p.id).n, open = total - completed - cancelled - withdrawn - rejected;
+  const volume = get("SELECT COALESCE(SUM(l.quantity * l.unit_price),0) v FROM market_deal_lines l JOIN market_deals d ON d.id = l.deal_id WHERE d.partner_id = ? AND d.status = 'completed'", p.id).v;
+  const avgDays = get("SELECT AVG(julianday(COALESCE(closed_at, updated_at)) - julianday(created_at)) d FROM market_deals WHERE partner_id = ? AND status = 'completed'", p.id).d;
+  const last = get('SELECT MAX(created_at) t FROM market_deals WHERE partner_id = ?', p.id).t;
+  const overdue = get("SELECT COUNT(*) n FROM credit_installments i JOIN credit_loans l ON l.id = i.loan_id WHERE l.partner_id = ? AND l.status = 'active' AND i.status = 'open' AND i.due_date < ?", p.id, now().slice(0, 10)).n;
+  const closed = completed + cancelled + withdrawn, rate = closed ? Math.round((completed / closed) * 100) : null;
+  const label = closed < 3 ? null : RATING_LABELS.find(([min]) => rate >= min);
+  return {
+    stats: { total, open, completed, cancelled, withdrawn, rejected, completionRate: rate, volume: Math.round(volume * 100) / 100, avgDays: avgDays == null ? null : Math.round(avgDays * 10) / 10, lastDealAt: last, overdueInstallments: overdue },
+    auto: label ? { label: label[1], tone: label[2] } : { label: 'Zu wenig Daten', tone: 'mute' },
+    stars: p.rating ?? null, note: p.rating_note ?? '',
+  };
+}
 const parseApps = (p) => { try { return JSON.parse(p.apps).filter(isPartnerApp); } catch { return []; } };
 const linkPath = (token) => `/p/${token}`;
 const dto = (p, { withLink }) => ({
@@ -29,7 +50,7 @@ const dto = (p, { withLink }) => ({
   level: levelBrief(p.id), levelEnabled: !!p.level_enabled, itemsMode: p.items_mode, allowOther: !!p.allow_other, itemIds: p.items_mode === 'selected' ? all('SELECT item_id FROM partner_items WHERE partner_id = ?', p.id).map((x) => x.item_id) : [],
   docs: { id: !!p.id_doc_ext, license: !!p.license_doc_ext, weapon: !!p.weapon_doc_ext, clearance: !!p.clearance_doc_ext },
   locked: !!(p.locked_until && p.locked_until > now()), lockedUntil: p.locked_until && p.locked_until > now() ? p.locked_until : null,
-  dealCount: p.deal_count ?? 0,
+  dealCount: p.deal_count ?? 0, rating: ratingInfo(p),
   linkPath: withLink ? linkPath(p.link_token) : undefined,
 });
 /** Format-Regeln für die Stammdaten externer Zugänge */
@@ -170,6 +191,16 @@ export default {
       return { partner: dto(get(`${LIST_SQL} WHERE p.id = ?`, id), { withLink: true }), code }; // Code wird nur hier einmal angezeigt
     });
 
+    // Einschätzung der Führung: Sterne (1–5, leer = keine) und interne Notiz – nie für den Partner sichtbar
+    r.put('/api/partners/:id/rating', { perm: 'partners.manage' }, (ctx) => {
+      const id = Number(ctx.params.id), cur = get('SELECT * FROM partners WHERE id = ?', id); if (!cur) throw notFound('Zugang nicht gefunden.');
+      const b = ctx.body, stars = b.stars == null || b.stars === '' || b.stars === 0 ? null : Number(b.stars);
+      if (stars !== null && (!Number.isInteger(stars) || stars < 1 || stars > 5)) throw bad('Bewertung: 1 bis 5 Sterne.');
+      const noteText = str(b.note, 'Notiz', { max: 500, required: false });
+      run('UPDATE partners SET rating = ?, rating_note = ?, updated_at = ? WHERE id = ?', stars, noteText, now(), id);
+      audit(ctx, { action: 'partner.rated', module: 'partners', targetType: 'partner', targetId: id, targetLabel: cur.name, before: { stars: cur.rating ?? null }, after: { stars, note: noteText ? true : false } });
+      return { rating: ratingInfo(get('SELECT * FROM partners WHERE id = ?', id)) };
+    });
     r.patch('/api/partners/:id', { perm: 'partners.manage' }, (ctx) => {
       const id = Number(ctx.params.id);
       const cur = get(`${LIST_SQL} WHERE p.id = ?`, id);

@@ -1,3 +1,5 @@
+import { watchLoginNotice } from './watchlist.js';
+import { touchActivity } from './activity.js';
 import { all, get, run, now } from '../core/db.js';
 import { HttpError, bad, str, conflict } from '../core/http.js';
 import {
@@ -27,6 +29,7 @@ export default {
         audit({ ip: ctx.ip, actorName: 'Unbekannt' }, { action: 'auth.login_failed', module: 'auth', targetType: 'user' });
         throw new HttpError(401, 'Benutzername oder Passwort falsch.', 'invalid_credentials');
       }
+      if (['blocked', 'rejected'].includes(row.status)) watchLoginNotice(row.id, { blocked: true }); // Beobachter erfahren von Anmeldeversuchen gesperrter Zugänge
       if (row.status === 'blocked') throw new HttpError(403, `Dein Zugang wurde gesperrt.${row.status_reason ? ' Grund: ' + row.status_reason : ''}`, 'blocked');
       if (row.status === 'rejected') throw new HttpError(403, `Dein Zugangsantrag wurde abgelehnt.${row.status_reason ? ' Grund: ' + row.status_reason : ''}`, 'rejected');
 
@@ -34,6 +37,8 @@ export default {
       run('UPDATE users SET last_login_at = ? WHERE id = ?', now(), row.id);
       const s = createSession(row.id, { ip: ctx.ip, ua: ctx.req.headers['user-agent'], hours: getConfig('auth.session_hours') });
       ctx.headers['Set-Cookie'] = sessionCookie(ctx, s.token, s.expires);
+      watchLoginNotice(row.id);
+      touchActivity(row.id);
       const fresh = loadUser(row.id);
       audit({ user: fresh, ip: ctx.ip }, { action: 'auth.login', module: 'auth', targetType: 'user', targetId: row.id, targetLabel: row.member_number ?? `Mitglied #${row.id}` });
       return { user: publicUser(fresh) };

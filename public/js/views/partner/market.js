@@ -61,8 +61,8 @@ export default async function render(container, ctx) {
       const mine = d.turn === 'partner' && ['submitted', 'negotiating'].includes(d.status);
       const ch = changes.get(d.id);
       const el = h('article', { class: `card hoverable deal-card ${mine ? 'attention' : ''} ${ch ? `fresh fresh-${ch.kind}` : ''}`, tabindex: 0 },
-        h('div', { class: 'dc-main' }, ch && h('div', { class: 'fresh-line' }, h('span', { class: 'fresh-badge' }, ch.label)), h('div', { class: 'dc-title' }, h('span', { class: 'member-no' }, d.number), ' ', d.item.name, ' ', catBadge(d.item.category)),
-          h('div', { class: 'dc-sub' }, `${d.quantity.toLocaleString('de-DE')} ${d.item.unit} × ${money(d.unitPrice)} · ${timeAgo(d.updatedAt)}`),
+        h('div', { class: 'dc-main' }, ch && h('div', { class: 'fresh-line' }, h('span', { class: 'fresh-badge' }, ch.label)), h('div', { class: 'dc-title' }, h('span', { class: 'member-no' }, d.number), ' ', d.itemLabel ?? d.item.name, ' ', d.lineCount > 1 ? null : catBadge(d.item.category)),
+          h('div', { class: 'dc-sub' }, `${d.lineCount > 1 ? `${d.lineCount} Positionen` : `${d.quantity.toLocaleString('de-DE')} ${d.item.unit} × ${money(d.unitPrice)}`} · ${timeAgo(d.updatedAt)}`),
           h('div', { class: 'chips', style: { marginTop: '8px' } }, d.direction === 'sell' && h('span', { class: 'badge no-dot b-info' }, 'Angebot vom Team'), dealBadge(d), turnBadge(d, 'partner'))),
         h('div', { class: 'dc-price' }, money(d.total)), icon('chevronR'));
       const open = () => { markDealSeen(scope, d); changes.delete(d.id); el.classList.remove('fresh', 'fresh-new', 'fresh-status', 'fresh-update'); el.querySelector('.fresh-line')?.remove(); ctx.refreshCounters?.(); openDealModal({ side: 'partner', base: '/api/p/market', id: d.id, onChange: async () => { try { const cur = (await api.get('/api/p/market/deals')).deals.find((x) => x.id === d.id); if (cur) markDealSeen(scope, cur); } catch { /* egal */ } show('deals'); } }); };
@@ -72,66 +72,67 @@ export default async function render(container, ctx) {
     }));
   }
 
+  /** Angebot einstellen: eine oder mehrere Positionen (Items) in einem Vorgang. */
   function offerDialog() {
     if (!catalog.items.length && !catalog.allowOther) return toast('Aktuell können keine Items angeboten werden.', 'warn');
-    const err = h('div');
+    const err = h('div'), rowsBox = h('div', { class: 'stack', style: { gap: '12px' } }), total = h('div', { class: 'total-line' });
     const catSel = select([{ value: '', label: 'Alle Kategorien' }, ...catalog.categories.map((c) => ({ value: c.id, label: c.label }))], '');
-    const itemSel = h('select', { class: 'select' });
-    const fill = () => mount(itemSel, [...catalog.items.filter((i) => !catSel.value || String(i.category?.id) === catSel.value).map((i) => h('option', { value: i.id }, `${i.name} (${i.unit})`)), catalog.allowOther && h('option', { value: 'other' }, 'Sonstiges (Artikel, der nicht in der Liste steht)')]);
-    const otherName = input({ maxLength: 80, placeholder: 'Bezeichnung des Artikels' });
-    const otherField = field('Was bietest du an? *', otherName, { help: 'Freitext – wir prüfen, ob wir den Artikel annehmen.' });
-    const isOther = () => itemSel.value === 'other';
-    const syncOther = () => { otherField.style.display = isOther() ? '' : 'none'; };
-    catSel.addEventListener('change', () => { fill(); refresh(); }); fill();
-    const qty = input({ type: 'number', min: 1, inputmode: 'numeric', placeholder: 'Stückzahl' });
-    const price = input({ type: 'number', min: 1, inputmode: 'numeric', placeholder: 'Dein Preis pro Einheit' });
     const text = h('textarea', { class: 'textarea', maxLength: 500, placeholder: 'Beschreibung (Zustand, Besonderheiten …)' });
-    const quoteBox = h('div', { class: 'quote-box' });
-    let quote = null, custom = false, seq = 0;
-    const unit = () => catalog.items.find((i) => String(i.id) === itemSel.value)?.unit ?? 'Stück';
-    const draw = () => {
-      const q = Number(qty.value) > 0;
-      const own = custom || !quote;
-      const pf = price.closest('.field');
-      if (pf) pf.style.display = own ? '' : 'none';
-      if (quote && !custom) {
-        mount(quoteBox, h('div', { class: 'qb-label' }, icon('tag'), 'Unser Preisvorschlag'),
-          h('div', { class: 'qb-price' }, money(quote.unitPrice), h('span', { class: 'muted' }, ` pro ${unit()}`)),
-          h('div', { class: 'qb-total' }, 'Gesamt: ', h('b', null, money(quote.total))),
-          h('div', { class: 'help' }, 'Du kannst direkt zu diesem Preis anbieten oder einen eigenen Preis vorschlagen – wir prüfen jedes Angebot.'),
-          button('Eigenen Preis vorschlagen', { size: 'sm', variant: 'ghost', icon: 'edit', onClick: () => { custom = true; draw(); price.focus(); } }));
-      } else if (quote && custom) {
-        mount(quoteBox, h('div', { class: 'qb-label' }, icon('tag'), `Unser Vorschlag: ${money(quote.unitPrice)} pro ${unit()}`),
-          q && Number(price.value) > 0 && h('div', { class: 'qb-total' }, 'Dein Angebot gesamt: ', h('b', null, money(Number(qty.value) * Number(price.value)))),
-          button('Zum Vorschlag zurück', { size: 'sm', variant: 'ghost', icon: 'refresh', onClick: () => { custom = false; draw(); } }));
-      } else mount(quoteBox, q && Number(price.value) > 0 ? h('div', { class: 'qb-total' }, 'Gesamt: ', h('b', null, money(Number(qty.value) * Number(price.value)))) : note('Für diesen Artikel gibt es keinen automatischen Vorschlag – bitte nenne deinen Preis.', 'info'));
-    };
-    const refresh = async () => {
-      const my = ++seq;
-      const item = catalog.items.find((i) => String(i.id) === itemSel.value);
-      quote = null; syncOther();
-      if (!isOther() && item?.suggestedPrice != null) {
-        try { const r = await api.get(`/api/p/market/quote?itemId=${item.id}&quantity=${Math.max(1, Number(qty.value) || 1)}`); if (my === seq) quote = r.quote; } catch { /* kein Vorschlag */ }
+    let rows = [];
+    const itemOf = (r) => catalog.items.find((i) => String(i.id) === r.item.value);
+    const isOther = (r) => r.item.value === 'other';
+    // Auswahl je Position: Katalog-Items (jedes nur einmal) plus „Sonstiges“ (beliebig oft)
+    const fillItems = () => {
+      for (const r of rows) {
+        const cur = r.item.value, taken = new Set(rows.filter((x) => x !== r && x.item.value && x.item.value !== 'other').map((x) => x.item.value));
+        const opts = catalog.items.filter((i) => (!catSel.value || String(i.category?.id) === catSel.value || String(i.id) === cur) && (!taken.has(String(i.id)) || String(i.id) === cur));
+        mount(r.item, [...opts.map((i) => h('option', { value: i.id }, `${i.name} (${i.unit})`)), catalog.allowOther && h('option', { value: 'other' }, 'Sonstiges (Artikel, der nicht in der Liste steht)')]);
+        if (cur && (opts.some((i) => String(i.id) === cur) || cur === 'other')) r.item.value = cur;
       }
-      if (my === seq) draw();
     };
-    let t; const later = () => { clearTimeout(t); t = setTimeout(refresh, 250); };
-    itemSel.addEventListener('change', () => { custom = false; refresh(); });
-    qty.addEventListener('input', later); price.addEventListener('input', draw);
+    const draw = () => {
+      let t = 0, missing = false;
+      for (const r of rows) {
+        const q = Number(r.qty.value), own = Number(r.price.value), p = own > 0 ? own : r.quote?.unitPrice ?? 0;
+        r.otherField.style.display = isOther(r) ? '' : 'none';
+        r.hint.textContent = isOther(r) ? '' : r.quote ? `Unser Preisvorschlag: ${money(r.quote.unitPrice)} pro ${itemOf(r)?.unit ?? 'Stück'}${own > 0 && own !== r.quote.unitPrice ? ` · dein Preis: ${money(own)}` : ''}` : (itemOf(r)?.suggestedPrice != null ? '' : 'Dafür gibt es keinen automatischen Vorschlag – bitte nenne deinen Preis.');
+        r.price.placeholder = r.quote && !isOther(r) ? `Vorschlag: ${r.quote.unitPrice}` : 'Dein Preis pro Einheit';
+        r.sum.textContent = q > 0 && p > 0 ? money(q * p) : '';
+        if (q > 0 && p > 0) t += q * p; else missing = true;
+      }
+      mount(total, 'Gesamt: ', h('b', null, t > 0 ? money(t) : '–'), rows.length > 1 && h('span', { class: 'muted' }, ` (${rows.length} Positionen)`), missing && t > 0 && h('span', { class: 'muted' }, ' – noch nicht alle Positionen vollständig'));
+    };
+    const requote = async (r) => {
+      const my = ++r.seq, item = itemOf(r); r.quote = null;
+      if (!isOther(r) && item?.suggestedPrice != null) { try { const res = await api.get(`/api/p/market/quote?itemId=${item.id}&quantity=${Math.max(1, Number(r.qty.value) || 1)}`); if (my === r.seq) r.quote = res.quote; } catch { /* kein Vorschlag */ } }
+      if (my === r.seq) draw();
+    };
+    const drawRows = () => mount(rowsBox, rows.map((r, i) => h('div', { class: 'offer-line' },
+      h('div', { class: 'form-row' }, field(rows.length > 1 ? `Item ${i + 1}` : 'Artikel', r.item), field('Stückzahl', r.qty), field('Dein Preis pro Einheit', r.price)),
+      r.otherField, h('div', { class: 'ol-foot' }, r.hint, h('span', { class: 'grow' }), r.sum, rows.length > 1 && button('', { size: 'sm', variant: 'ghost', icon: 'trash', title: 'Position entfernen', onClick: () => { rows.splice(i, 1); fillItems(); drawRows(); draw(); } })))));
+    const addRow = () => {
+      if (rows.length >= 25) return toast('Höchstens 25 Positionen pro Angebot.', 'warn');
+      const r = { seq: 0, quote: null, item: h('select', { class: 'select' }), qty: input({ type: 'number', min: 1, inputmode: 'numeric', placeholder: 'Stückzahl' }), price: input({ type: 'number', min: 0.01, step: '0.01', inputmode: 'decimal' }), other: input({ maxLength: 80, placeholder: 'Bezeichnung des Artikels' }), hint: h('div', { class: 'help' }), sum: h('b', null) };
+      r.otherField = field('Was bietest du an? *', r.other, { help: 'Freitext – wir prüfen, ob wir den Artikel annehmen.' });
+      r.item.addEventListener('change', () => { fillItems(); drawRows(); requote(r); });
+      let tm; r.qty.addEventListener('input', () => { draw(); clearTimeout(tm); tm = setTimeout(() => requote(r), 250); }); r.price.addEventListener('input', draw);
+      rows.push(r); fillItems(); drawRows(); requote(r);
+    };
+    catSel.addEventListener('change', () => { fillItems(); rows.forEach(requote); });
+    addRow();
     const m = openModal({
-      title: 'Angebot einstellen',
-      body: h('div', null, err, h('div', { class: 'form-row' }, field('Kategorie', catSel), field('Artikel', itemSel)),
-        otherField, field('Stückzahl', qty), quoteBox, field('Dein Preis pro Einheit', price), h('div', { style: { height: '12px' } }), field('Hinweis', text)),
+      title: 'Angebot einstellen', wide: true,
+      body: h('div', null, err, field('Kategorie (Auswahl eingrenzen)', catSel), rowsBox, button('Weiteres Item hinzufügen', { icon: 'plus', size: 'sm', onClick: addRow }), total, h('div', { style: { height: '12px' } }), field('Hinweis', text)),
       footer: [button('Abbrechen', { onClick: () => m.close() }), button('Angebot senden', { variant: 'primary', icon: 'check', onClick: (e) => busy(e.currentTarget, async () => {
         err.replaceChildren();
-        if (!itemSel.value) return err.replaceChildren(formError('Bitte wähle einen Artikel aus.'));
-        const body = isOther() ? { other: true, otherName: otherName.value.trim(), quantity: Number(qty.value), note: text.value.trim(), unitPrice: Number(price.value) } : { itemId: Number(itemSel.value), quantity: Number(qty.value), note: text.value.trim() };
-        if (!isOther() && (custom || !quote)) body.unitPrice = Number(price.value);
-        try { await api.post('/api/p/market/offers', body); m.close(); toast('Angebot gesendet – wir prüfen es und melden uns.'); show('deals'); }
+        if (rows.some((r) => !r.item.value)) return err.replaceChildren(formError('Bitte wähle für jede Position einen Artikel aus.'));
+        const lines = rows.map((r) => (isOther(r)
+          ? { other: true, otherName: r.other.value.trim(), quantity: Number(r.qty.value), unitPrice: Number(r.price.value) }
+          : { itemId: Number(r.item.value), quantity: Number(r.qty.value), ...(Number(r.price.value) > 0 ? { unitPrice: Number(r.price.value) } : {}) }));
+        try { await api.post('/api/p/market/offers', { lines, note: text.value.trim() }); m.close(); toast(lines.length > 1 ? `Angebot mit ${lines.length} Positionen gesendet – wir prüfen es und melden uns.` : 'Angebot gesendet – wir prüfen es und melden uns.'); show('deals'); }
         catch (ex) { err.replaceChildren(formError(ex.message)); }
       }) })],
     });
-    refresh();
   }
 
   ctx.live(['market', 'lookups', 'system', 'partners'], () => show(tab));

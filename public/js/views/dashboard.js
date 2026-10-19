@@ -35,13 +35,39 @@ function stack(segments, total) {
 }
 
 const RENDERERS = {
+  /** Termine & Aufträge: nächste Termine und eigene offene Aufträge. */
+  schedule: (w) => {
+    const d = w.data, go = () => openApp('schedule');
+    const when = (e) => (e.allDay ? new Date(e.startsAt).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }) : new Date(e.startsAt).toLocaleString('de-DE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
+    const body = h('div', { class: 'sch-widget' },
+      h('div', { class: 'sch-sub' }, 'Nächste Termine'),
+      d.next.length ? d.next.map((e) => h('div', { class: 'list-row clickable', onclick: go }, h('i', { class: 'sch-dot', style: { background: e.kind?.color ?? 'var(--accent)' } }), h('div', { class: 'grow' }, h('div', { class: 't' }, e.title), h('div', { class: 's' }, when(e))), e.rsvp === 'pending' && badge('Zusage offen', 'b-warn'))) : h('div', { class: 'muted', style: { padding: '4px 0 10px' } }, 'Keine anstehenden Termine.'),
+      h('div', { class: 'sch-sub', style: { marginTop: '10px' } }, 'Meine Aufträge', d.overdue > 0 && badge(`${d.overdue} überfällig`, 'b-err', false)),
+      d.tasks.length ? d.tasks.map((t) => h('div', { class: 'list-row clickable', onclick: go }, icon('flag'), h('div', { class: 'grow' }, h('div', { class: 't' }, t.title), h('div', { class: 's' }, t.dueAt ? (t.overdue ? 'überfällig – ' : 'fällig ') + new Date(t.dueAt).toLocaleString('de-DE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'ohne Frist')), badge(t.priorityLabel, t.priority === 'urgent' ? 'b-err' : t.priority === 'high' ? 'b-warn' : 'b-info'))) : h('div', { class: 'muted', style: { padding: '4px 0' } }, 'Keine offenen Aufträge.'));
+    return card(w.title, body, { icon: 'calendar' });
+  },
+
+  /** Einarbeitung: eigene Checkliste, solange sie läuft (sonst unsichtbar). Schritte vom Typ „Mitglied“ hakt man hier selbst ab. */
+  onboarding: (w) => {
+    const d = w.data; if (!d.active) return null;
+    const host = h('div'), paint = (x) => {
+      const pct = x.total ? Math.round((x.done / x.total) * 100) : 0;
+      mount(host, h('div', { class: 'ob-bar' }, h('i', { style: { width: pct + '%' } })), h('div', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 10px' } }, `${x.done} von ${x.total} Schritten erledigt`),
+        x.steps.map((s) => h('label', { class: `ob-step ${s.done ? 'done' : ''}` },
+          s.confirmBy === 'self' ? h('input', { type: 'checkbox', checked: s.done, onchange: async (e) => { try { paint(await api.post(`/api/onboarding/me/steps/${s.id}`, { done: e.target.checked })); } catch (ex) { toast(ex.message, 'err'); e.target.checked = s.done; } } }) : h('span', { class: 'ob-lock', title: 'Wird von der Führung bestätigt' }, s.done ? icon('check') : icon('clock')),
+          h('div', { class: 'grow' }, h('div', { class: 't' }, s.title), s.description && h('div', { class: 's' }, s.description), h('div', { class: 's' }, s.confirmBy === 'self' ? 'Hakst du selbst ab' : s.done ? `Bestätigt von ${s.doneBy ?? 'der Führung'}` : 'Bestätigt die Führung')))));
+    };
+    paint(d);
+    return card(w.title, host, { icon: 'userCheck' });
+  },
+
   /** Regelwerk der Organisation: gut sichtbar ganz oben – öffnet das (live eingebettete) Dokument; ohne Link ein Platzhalter. */
   codex: (w) => {
     const c = w.data.codex;
     const read = () => {
       const m = openModal({ title: 'Codex', wide: true,
         body: h('iframe', { class: 'codex-frame', src: c.embedUrl, title: 'Codex', referrerpolicy: 'no-referrer', allow: 'clipboard-write' }),
-        footer: [h('span', { class: 'grow' }), button('In Google öffnen', { icon: 'link', onClick: () => window.open(c.openUrl, '_blank', 'noopener') }), button('Schließen', { variant: 'primary', onClick: () => m.close() })] });
+        footer: [h('span', { class: 'grow' }), button(c.source === 'google' ? 'In Google öffnen' : `Auf ${c.host} öffnen`, { icon: 'link', onClick: () => window.open(c.openUrl, '_blank', 'noopener') }), button('Schließen', { variant: 'primary', onClick: () => m.close() })] });
     };
     return h('section', { class: 'card codex-hero' },
       h('div', { class: 'codex-ic' }, icon('scale')),
@@ -208,6 +234,7 @@ export default async function render(container, ctx) {
       if (!r) continue;
       let el;
       try { el = r(w); } catch (e) { el = errorCard(w, e); }
+      if (!el) continue; // Widget blendet sich selbst aus (z. B. keine laufende Einarbeitung)
       el.style.flex = '1';
       grid.append(h('div', { class: `${SPAN[w.size] ?? 'span-6'} dash-cell`, style: { display: 'flex', flexDirection: 'column', '--i': i++ } }, el));
     }

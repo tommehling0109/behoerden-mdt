@@ -83,9 +83,9 @@ export default async function render(container, ctx) {
       table([
         { label: 'Nr.', style: { width: '1%' }, render: (d) => h('div', null, h('span', { class: 'member-no' }, d.number), h('div', { style: { marginTop: '4px' } }, dirBadge(d))) },
         { label: 'Partner', render: (d) => h('div', null, h('b', null, d.partner.number), ' ', d.partner.isMember && badge('Mitglied', 'b-info', false), ' ', levelBadge(d.partner.level), h('div', { class: 'muted', style: { fontSize: '12px' } }, d.partner.name)) },
-        { label: 'Item', render: (d) => h('div', null, d.item.name, ' ', catBadge(d.item.category)) },
-        { label: 'Menge', render: (d) => `${d.quantity.toLocaleString('de-DE')} ${d.item.unit}` },
-        { label: 'Preis/Einh.', render: (d) => money(d.unitPrice) },
+        { label: 'Item', render: (d) => h('div', null, d.item.name, ' ', d.lineCount > 1 ? badge(`+ ${d.lineCount - 1} weitere`, 'b-info', false) : catBadge(d.item.category)) },
+        { label: 'Menge', render: (d) => (d.lineCount > 1 ? `${d.lineCount} Positionen` : `${d.quantity.toLocaleString('de-DE')} ${d.item.unit}`) },
+        { label: 'Preis/Einh.', render: (d) => (d.lineCount > 1 ? h('span', { class: 'muted' }, 'verschieden') : money(d.unitPrice)) },
         { label: 'Gesamt', render: (d) => h('b', null, money(d.total)) },
         { label: 'Status', render: (d) => h('div', { class: 'chips' }, dealBadge(d), turnBadge(d, 'staff')) },
         { label: 'Aktualisiert', render: (d) => h('span', { class: 'muted' }, timeAgo(d.updatedAt)) },
@@ -106,34 +106,40 @@ export default async function render(container, ctx) {
     const err = h('div');
     const partner = select(partners.map((p) => ({ value: p.id, label: `${p.number} · ${p.name}` })), '');
     const wh = select(whs.map((w) => ({ value: w.id, label: w.name })), whs[0].id);
-    const item = h('select', { class: 'select' });
-    const qty = input({ type: 'number', min: 1, inputmode: 'numeric', placeholder: 'Menge' });
-    const price = input({ type: 'number', min: 1, inputmode: 'numeric', placeholder: 'Preis pro Einheit' });
     const text = h('textarea', { class: 'textarea', maxLength: 500, placeholder: 'Hinweis für den Partner (optional)' });
-    const info = h('div', { class: 'help' });
-    const total = h('div', { class: 'total-line' }, 'Gesamt: –');
-    let stock = [];
-    const sel = () => stock.find((s) => String(s.itemId) === item.value);
+    const total = h('div', { class: 'total-line' }, 'Gesamt: –'), rowsBox = h('div', { class: 'stack', style: { gap: '10px' } });
+    let stock = [], rows = [];
+    // Eine Position = Item aus dem Lager + Menge + Preis; jedes Item nur einmal (die Auswahl blendet schon gewählte aus)
     const upd = () => {
-      const s = sel();
-      info.textContent = s ? `Im Lager verfügbar: ${s.quantity.toLocaleString('de-DE')} ${s.unit}${s.minPrice != null ? ` · Ankaufs-Spanne: ${money(s.minPrice)} – ${money(s.maxPrice)}` : ''}` : '';
-      mount(total, 'Gesamt: ', h('b', null, Number(qty.value) > 0 && Number(price.value) > 0 ? money(Number(qty.value) * Number(price.value)) : '–'));
+      let t = 0;
+      for (const r of rows) {
+        const s = stock.find((x) => String(x.itemId) === r.item.value);
+        r.info.textContent = s ? `Im Lager verfügbar: ${s.quantity.toLocaleString('de-DE')} ${s.unit}${s.minPrice != null ? ` · Ankaufs-Spanne: ${money(s.minPrice)} – ${money(s.maxPrice)}` : ''}` : '';
+        const sum = Number(r.qty.value) * Number(r.price.value); r.sum.textContent = sum > 0 ? money(sum) : ''; if (sum > 0) t += sum;
+      }
+      mount(total, 'Gesamt: ', h('b', null, t > 0 ? money(t) : '–'), rows.length > 1 && h('span', { class: 'muted' }, ` (${rows.length} Positionen)`));
+    };
+    const fillItems = () => { for (const r of rows) { const cur = r.item.value, taken = new Set(rows.filter((x) => x !== r && x.item.value).map((x) => x.item.value)); const opts = stock.filter((s) => !taken.has(String(s.itemId)) || String(s.itemId) === cur); mount(r.item, opts.length ? opts.map((s) => h('option', { value: s.itemId }, `${s.name} (${s.quantity.toLocaleString('de-DE')} ${s.unit})`)) : h('option', { value: '' }, stock.length ? 'Alle Items sind schon im Angebot' : 'Dieses Lager ist leer')); if (cur && opts.some((s) => String(s.itemId) === cur)) r.item.value = cur; } };
+    const drawRows = () => { mount(rowsBox, rows.map((r, i) => h('div', { class: 'offer-line' }, h('div', { class: 'form-row' }, field(rows.length > 1 ? `Item ${i + 1}` : 'Artikel', r.item), field('Menge', r.qty), field('Preis pro Einheit', r.price)), h('div', { class: 'ol-foot' }, r.info, h('span', { class: 'grow' }), r.sum, rows.length > 1 && button('', { size: 'sm', variant: 'ghost', icon: 'trash', title: 'Position entfernen', onClick: () => { rows.splice(i, 1); fillItems(); drawRows(); upd(); } }))))); };
+    const addRow = () => {
+      if (rows.length >= 25) return toast('Höchstens 25 Positionen pro Angebot.', 'warn');
+      const r = { item: h('select', { class: 'select' }), qty: input({ type: 'number', min: 1, inputmode: 'numeric', placeholder: 'Menge' }), price: input({ type: 'number', min: 0.01, step: '0.01', inputmode: 'decimal', placeholder: 'Preis pro Einheit' }), info: h('div', { class: 'help' }), sum: h('b', null) };
+      for (const el of [r.item, r.qty, r.price]) { el.addEventListener('input', upd); el.addEventListener('change', () => { if (el === r.item) fillItems(); upd(); }); }
+      rows.push(r); fillItems(); const taken = new Set(rows.filter((x) => x !== r && x.item.value).map((x) => x.item.value)); const free = stock.find((s) => !taken.has(String(s.itemId))); if (free) r.item.value = String(free.itemId); fillItems(); drawRows(); upd();
     };
     const loadStock = async () => {
-      mount(item, h('option', { value: '' }, 'Lade …'));
       try { stock = (await api.get(`/api/warehouses/${wh.value}`)).stock; } catch { stock = []; }
-      mount(item, stock.length ? stock.map((s) => h('option', { value: s.itemId }, `${s.name} (${s.quantity.toLocaleString('de-DE')} ${s.unit})`)) : h('option', { value: '' }, 'Dieses Lager ist leer'));
-      upd();
+      rows = []; addRow();
     };
-    wh.addEventListener('change', loadStock); item.addEventListener('change', upd); qty.addEventListener('input', upd); price.addEventListener('input', upd);
+    wh.addEventListener('change', loadStock);
     const m = openModal({
-      title: 'Angebot an Partner',
+      title: 'Angebot an Partner', wide: true,
       body: h('div', null, err, note('Der Partner sieht dein Angebot in seiner Börse und kann annehmen, ablehnen oder ein Gegenangebot machen. Bei Annahme wird die Ware automatisch aus dem gewählten Lager abgebucht und die Zahlung im Finanz-Journal vorgemerkt.', 'info'), h('div', { style: { height: '12px' } }),
-        field('Partner', partner), h('div', { class: 'form-row' }, field('Aus Lager', wh), field('Artikel', item)), info, h('div', { class: 'form-row' }, field('Menge', qty), field('Preis pro Einheit', price)), total, h('div', { style: { height: '10px' } }), field('Hinweis', text)),
+        field('Partner', partner), field('Aus Lager', wh), rowsBox, button('Weiteres Item hinzufügen', { icon: 'plus', size: 'sm', onClick: addRow }), total, h('div', { style: { height: '10px' } }), field('Hinweis', text)),
       footer: [button('Abbrechen', { onClick: () => m.close() }), button('Angebot senden', { variant: 'primary', icon: 'check', onClick: (e) => busy(e.currentTarget, async () => {
         err.replaceChildren();
-        if (!item.value) return err.replaceChildren(formError('Bitte wähle einen Artikel aus dem Lager.'));
-        try { await api.post('/api/market/offers', { partnerId: Number(partner.value), warehouseId: Number(wh.value), itemId: Number(item.value), quantity: Number(qty.value), unitPrice: Number(price.value), note: text.value.trim() }); m.close(); toast('Angebot gesendet.'); showTab('deals', true); }
+        if (rows.some((r) => !r.item.value)) return err.replaceChildren(formError('Bitte wähle für jede Position einen Artikel aus dem Lager.'));
+        try { await api.post('/api/market/offers', { partnerId: Number(partner.value), warehouseId: Number(wh.value), lines: rows.map((r) => ({ itemId: Number(r.item.value), quantity: Number(r.qty.value), unitPrice: Number(r.price.value) })), note: text.value.trim() }); m.close(); toast(rows.length > 1 ? `Angebot mit ${rows.length} Positionen gesendet.` : 'Angebot gesendet.'); showTab('deals', true); }
         catch (ex) { err.replaceChildren(formError(ex.message)); }
       }) })],
     });
@@ -162,7 +168,7 @@ export default async function render(container, ctx) {
     const err = h('div');
     const item = select(items.map((i) => ({ value: i.id, label: `${i.name}${i.category ? ' · ' + i.category.label : ''}` })), w?.item.id ?? items[0].id);
     const qty = input({ type: 'number', min: 1, value: w?.quantity ?? '' });
-    const price = input({ type: 'number', min: 1, value: w?.unitPrice ?? '' });
+    const price = input({ type: 'number', min: 0.01, step: '0.01', value: w?.unitPrice ?? '' });
     const exp = input({ type: 'date', value: w?.expiresAt ? w.expiresAt.slice(0, 10) : '' });
     const text = h('textarea', { class: 'textarea', maxLength: 300, placeholder: 'Hinweis für Partner (z. B. Qualität, Dringlichkeit)' }, w?.note ?? '');
     const open = toggle('Gesuch ist offen', w ? w.status === 'open' : true);
@@ -210,7 +216,7 @@ export default async function render(container, ctx) {
     const desc = input({ value: item?.description ?? '', maxLength: 300 });
     const cat = select([{ value: '', label: '— keine Kategorie —' }, ...cats.map((c) => ({ value: c.id, label: c.label }))], item?.category?.id ?? '');
     const unit = input({ value: item?.unit ?? 'Stück', maxLength: 20 });
-    const ref = input({ type: 'number', min: 0, value: item?.referencePrice ?? '', placeholder: 'optional, nur intern' });
+    const ref = input({ type: 'number', min: 0, step: '0.01', value: item?.referencePrice ?? '', placeholder: 'optional, nur intern' });
     const xp = input({ type: 'number', min: 0, step: '1', value: item?.xp ?? '', placeholder: 'leer = Standard' });
     const active = toggle('Im Katalog aktiv (für Partner auswählbar)', item ? item.isActive : true);
     // Sichtbarkeit für externe Partner (damit sie nicht sehen, was wir im Lager haben)

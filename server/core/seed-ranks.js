@@ -42,16 +42,16 @@ export function seedRanks() {
  * Der Superadmin braucht keine Rolle – er hat immer alles.
  */
 const LEVELS = [
-  ['chat.view', 'chat.send', 'map.view', 'vehicles.view', 'warehouse.view', 'market.view', 'org.view', 'board.view', 'changelog.view', 'legal.view', 'market.trade'],
+  ['chat.view', 'chat.send', 'map.view', 'vehicles.view', 'warehouse.view', 'market.view', 'org.view', 'board.view', 'changelog.view', 'legal.view', 'market.trade', 'schedule.view', 'activity.absence'],
   ['warehouse.stock', 'vehicles.view_location', 'vehicles.edit', 'contacts.view'],
   ['map.edit', 'chat.pin'],
-  ['market.deals.manage', 'vehicles.create', 'warehouse.view_access', 'contacts.edit', 'legal.cases.view'],
+  ['market.deals.manage', 'schedule.create', 'vehicles.create', 'warehouse.view_access', 'contacts.edit', 'legal.cases.view'],
   ['market.wanted.manage', 'warehouse.items', 'partners.view'],
-  ['users.view', 'tab.view', 'credit.view', 'stats.view'],
-  ['users.approve', 'chat.moderate', 'market.catalog.manage', 'finance.view', 'vehicles.delete'],
+  ['users.view', 'tab.view', 'credit.view', 'stats.view', 'schedule.tasks.assign'],
+  ['users.approve', 'schedule.manage', 'activity.view', 'onboarding.check', 'chat.moderate', 'market.catalog.manage', 'finance.view', 'vehicles.delete'],
   ['warehouse.manage', 'warehouse.prices', 'tab.statements', 'credit.manage', 'lookups.view'],
-  ['partners.manage', 'users.create', 'users.edit', 'credit.payments', 'chat.partners', 'chat.manage', 'tickets.manage', 'board.manage', 'contacts.delete', 'contacts.bank', 'legal.cases.edit', 'legal.cases.billing'],
-  ['partners.documents', 'tab.manage_companies', 'credit.limits', 'finance.manual', 'finance.export', 'audit.view', 'roles.view', 'lookups.manage'],
+  ['partners.manage', 'activity.manage', 'onboarding.manage', 'users.create', 'users.edit', 'credit.payments', 'chat.partners', 'chat.manage', 'tickets.manage', 'board.manage', 'contacts.delete', 'contacts.bank', 'legal.cases.edit', 'legal.cases.billing'],
+  ['partners.documents', 'users.watchlist', 'tab.manage_companies', 'credit.limits', 'finance.manual', 'finance.export', 'audit.view', 'roles.view', 'lookups.manage'],
   ['users.personnel_view', 'users.personnel_edit', 'users.avatar_edit', 'users.avatar_remove', 'audit.export', 'org.manage', 'admin.access', 'config.view', 'changelog.manage', 'help.manage', 'contacts.secret', 'legal.manage', 'legal.cases.confidential', 'legal.cases.delete'],
   ['users.password_reset', 'partners.levels', 'roles.manage', 'system.backup', 'system.apps', 'config.edit', 'market.delete', 'credit.delete', 'tab.delete', 'partners.delete', 'finance.delete', 'tickets.delete', 'users.delete'],
   [], // Stufe 13: Administrator-Rolle (alle Rechte)

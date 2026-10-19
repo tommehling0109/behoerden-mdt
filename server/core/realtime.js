@@ -16,7 +16,7 @@ const conns = new Set();
 const RETAIN = 5000;
 const REPLAY_MAX = 1000;
 
-const STAFF_PERM = { users: 'users.view', roles: 'roles.view', org: 'org.view', market: 'market.view', partners: 'partners.view', audit: 'audit.view', chat: 'chat.view', vehicles: 'vehicles.view', map: 'map.view', warehouse: 'warehouse.view', finance: 'finance.view', credit: 'credit.view', board: 'board.view', changelog: 'changelog.view', contacts: 'contacts.view', legal: 'legal.view' };
+const STAFF_PERM = { users: 'users.view', roles: 'roles.view', org: 'org.view', market: 'market.view', partners: 'partners.view', audit: 'audit.view', chat: 'chat.view', vehicles: 'vehicles.view', map: 'map.view', warehouse: 'warehouse.view', finance: 'finance.view', credit: 'credit.view', board: 'board.view', changelog: 'changelog.view', contacts: 'contacts.view', legal: 'legal.view', schedule: 'schedule.view', activity: 'activity.view', onboarding: 'onboarding.check' };
 
 export function publish({ type = 'change', topic, kind = null, entityType = null, entityId = null, staff = 0, staffPerm = null, partnerScope = null, userId = null, partnerId = null, data = null }) {
   const row = {

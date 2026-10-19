@@ -2,6 +2,7 @@ import { all } from '../core/db.js';
 import { getConfig } from '../core/config.js';
 import { levelBrief } from '../core/levels.js';
 import { publish } from '../core/realtime.js';
+import { touchActivity } from './activity.js';
 
 /**
  * Online-Liste: welche Mitglieder haben das Panel gerade geöffnet? Jede geöffnete Seite meldet sich regelmäßig (Herzschlag) und sagt, ob der
@@ -50,6 +51,7 @@ export default {
   },
   routes(r) {
     r.post('/api/presence', (ctx) => {
+      if (!ctx.body.locked) touchActivity(ctx.user.id); // entsperrtes Panel = aktiv (auch wenn die Online-Liste aus ist)
       if (!getConfig('presence.enabled')) return { ok: true };
       const tabId = validTab(ctx.body.tabId); if (!tabId) return { ok: false };
       beat(`u:${ctx.user.id}`, tabId, ctx.body.locked);

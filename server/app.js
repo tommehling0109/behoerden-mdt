@@ -39,8 +39,13 @@ import marketModule from './modules/market.js';
 import hackModule from './modules/hack.js';
 import boardModule from './modules/board.js';
 import changelogModule from './modules/changelog.js';
-import legalModule from './modules/legal.js';
+import legalModule, { codexFrameSource } from './modules/legal.js';
 import helpModule from './modules/help.js';
+import scheduleModule from './modules/schedule.js';
+import watchlistModule from './modules/watchlist.js';
+import activityModule from './modules/activity.js';
+import onboardingModule from './modules/onboarding.js';
+import reportModule from './modules/report.js';
 import extrafilesModule from './modules/extrafiles.js';
 import levelsModule from './modules/levels.js';
 import problemsModule from './modules/problems.js';
@@ -49,7 +54,7 @@ import legalcasesModule from './modules/legalcases.js';
 import contactsModule from './modules/contacts.js';
 
 /** Modulliste – spätere Phasen hängen hier weitere Module an (vehicles, storage, purchasing, chat, …). */
-const MODULES = [systemModule, authModule, usersModule, rolesModule, orgModule, auditModule, dashboardModule, lookupsModule, partnersModule, marketModule, chatModule, vehiclesModule, mapModule, warehouseModule, financeModule, tabModule, creditModule, profileModule, statsModule, personnelModule, ticketsModule, hackModule, boardModule, changelogModule, legalModule, legalcasesModule, extrafilesModule, levelsModule, problemsModule, presenceModule, contactsModule, helpModule, realtimeModule];
+const MODULES = [systemModule, authModule, usersModule, rolesModule, orgModule, auditModule, dashboardModule, lookupsModule, partnersModule, marketModule, chatModule, vehiclesModule, mapModule, warehouseModule, financeModule, tabModule, creditModule, profileModule, statsModule, personnelModule, ticketsModule, hackModule, boardModule, changelogModule, legalModule, legalcasesModule, extrafilesModule, levelsModule, problemsModule, presenceModule, contactsModule, helpModule, scheduleModule, watchlistModule, activityModule, onboardingModule, reportModule, realtimeModule];
 
 /** Hinter nginx o. ä.: TRUST_PROXY=1 ⇒ Client-IP und Protokoll aus X-Forwarded-* übernehmen (sonst ignorieren – nicht fälschbar). */
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
@@ -68,13 +73,14 @@ const MIME = {
   '.json': 'application/json; charset=utf-8', '.woff2': 'font/woff2',
 };
 const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const SECURITY_HEADERS = {
+/** Frames: Google Docs, dazu genau die eine Herkunft, die für den Codex hinterlegt ist (z. B. eigenes Zipline), sonst nichts. */
+const csp = () => `default-src 'self'; img-src 'self' data: blob: https:; frame-src https://docs.google.com${codexFrameSource() ? ` ${codexFrameSource()}` : ''}; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`;
+const securityHeaders = () => ({
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'same-origin',
-  'Content-Security-Policy':
-    "default-src 'self'; img-src 'self' data: blob: https:; frame-src https://docs.google.com; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-};
+  'Content-Security-Policy': csp(),
+});
 
 export function buildApp() {
   migrate();
@@ -207,7 +213,7 @@ export function buildApp() {
   }
 
   return createServer(async (req, res) => {
-    for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+    for (const [k, v] of Object.entries(securityHeaders())) res.setHeader(k, v);
     if (isSecure(req)) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
       const url = new URL(req.url, 'http://localhost');

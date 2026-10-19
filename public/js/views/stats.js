@@ -1,5 +1,5 @@
 import { h, mount, fmtDateTime } from '../ui/dom.js';
-import { card, skeletons, empty } from '../ui/kit.js';
+import { card, skeletons, empty, tabs } from '../ui/kit.js';
 import { api } from '../api.js';
 import { columns, pairColumns, hbars } from '../ui/charts.js';
 
@@ -12,7 +12,7 @@ const dayLabel = (d) => d.slice(8, 10) + '.' + d.slice(5, 7) + '.';
 const monthLabel = (m) => `${['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'][Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
 
 /** Statistik: aggregierte Kennzahlen je Bereich. Nur Abschnitte, für die der Benutzer das jeweilige Ansichtsrecht hat, werden geliefert. */
-export default async function render(container, ctx) {
+async function renderStats(container, ctx) {
   mount(container, skeletons(3, 140));
   async function load() {
     const d = await api.get('/api/stats');
@@ -55,4 +55,20 @@ export default async function render(container, ctx) {
   }
   ctx.live(['market', 'credit', 'tab', 'finance', 'users', 'warehouse', 'vehicles', 'chat'], load, { wait: 1500 });
   try { await load(); } catch (e) { mount(container, empty('Fehler beim Laden', e.message, 'alert')); }
+}
+
+/** Statistik-App: Reiter „Kennzahlen“ (Diagramme) und „Bericht“ (Wochen-/Monatsbericht mit Vergleich und PDF). */
+export default async function render(container, ctx) {
+  let tab = 'stats';
+  const tabHost = h('div', { style: { marginBottom: '12px' } }), body = h('div');
+  mount(container, tabHost, body);
+  // Beim Wechsel der Reiter darf der jeweils andere keine späten Antworten oder Live-Updates mehr einzeichnen
+  const sub = (name) => ({ ...ctx, isCurrent: () => ctx.isCurrent() && tab === name, live: (topics, fn, o) => ctx.live(topics, () => (tab === name ? fn() : undefined), o) });
+  const show = async (t) => {
+    tab = t;
+    const c = sub(t);
+    if (t === 'stats') await renderStats(body, c); else (await import('./report.js')).default(body, c);
+  };
+  mount(tabHost, tabs([{ id: 'stats', label: 'Kennzahlen' }, { id: 'report', label: 'Bericht (Woche/Monat)' }], tab, (id) => show(id)));
+  await show('stats');
 }

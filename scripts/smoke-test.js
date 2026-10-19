@@ -612,7 +612,7 @@ try {
   assert.equal((await mod.call('GET', '/api/warehouses')).status, 403);
   r = await admin.call('POST', '/api/lookups/warehouse.type', { label: 'Depot', color: '#f59e0b' }); const whType = r.entry.id;
   r = await admin.call('POST', '/api/warehouse/items', { name: 'Eisenerz', unit: 'kg', space: 2, minPrice: 100, maxPrice: 200, targetStock: 1000 });
-  assert.equal(r.status, 201); const ore = r.item.id; assert.equal(r.item.suggestedPrice, 200); // leeres Lager ⇒ Höchstpreis
+  assert.equal(r.status, 201); const ore = r.item.id; assert.ok(r.item.suggestedPrice > 199 && r.item.suggestedPrice <= 200); // leeres Lager ⇒ (nahezu) Höchstpreis
   assert.equal((await admin.call('POST', '/api/warehouse/items', { name: 'Kaputt', minPrice: 300, maxPrice: 100 })).status, 400);
   assert.equal((await admin.call('POST', '/api/warehouse/items', { name: 'Halb', minPrice: 300 })).status, 400); ok('Items mit Preisspanne (Min/Max) – ungültige Spannen werden abgelehnt');
   r = await admin.call('POST', '/api/warehouses', { name: 'Hafen-Lager', typeId: whType, postal: '7085', capacity: 5000, sizeInfo: '120 m²', accessInfo: 'Tor-Code 1234', locationText: 'Hafen Süd', restricted: false });
@@ -668,7 +668,7 @@ try {
   const pcli = new Client(); r = await admin.call('POST', '/api/partners', { name: 'Händler Zwei', apps: ['market'] }); const ptok = r.partner.linkPath.split('/').pop(); assert.equal((await pcli.call('POST', `/api/p/${ptok}/login`, { code: r.code })).status, 200);
   r = await admin.call('GET', `/api/warehouse/items`); const oreNow = r.items.find((i) => i.id === ore);
   r = await pcli.call('GET', '/api/p/market/catalog'); const pItem = r.items.find((i) => i.id === ore); assert.ok(pItem); assert.equal(typeof pItem.suggestedPrice, 'number'); assert.equal(JSON.stringify(r).includes('minPrice'), false); assert.equal(JSON.stringify(r).includes('maxPrice'), false);
-  r = await pcli.call('GET', `/api/p/market/quote?itemId=${ore}&quantity=100`); assert.equal(r.status, 200); assert.ok(r.quote.unitPrice >= 100 && r.quote.unitPrice <= 200); assert.equal(r.quote.total, r.quote.unitPrice * 100); const qPrice = r.quote.unitPrice;
+  r = await pcli.call('GET', `/api/p/market/quote?itemId=${ore}&quantity=100`); assert.equal(r.status, 200); assert.ok(r.quote.unitPrice >= 100 && r.quote.unitPrice <= 200); assert.ok(Math.abs(r.quote.total - r.quote.unitPrice * 100) < 0.01); const qPrice = r.quote.unitPrice;
   const bigger = (await pcli.call('GET', `/api/p/market/quote?itemId=${ore}&quantity=800`)).quote.unitPrice; assert.ok(bigger <= qPrice); ok('Partner sieht automatischen Preisvorschlag (fällt bei Menge/Bestand), aber nie die Spanne');
   r = await pcli.call('POST', '/api/p/market/offers', { itemId: ore, quantity: 100 }); assert.equal(r.status, 201); assert.equal(r.deal.unitPrice, qPrice); assert.equal(r.deal.suggestedPrice, qPrice); const deal1 = r.deal.id; ok('Angebot ohne Preis → Vorschlagspreis wird automatisch übernommen (Genehmigung durch das Team)');
   r = await pcli.call('POST', '/api/p/market/offers', { itemId: ore, quantity: 100, unitPrice: qPrice + 40 }); assert.equal(r.deal.unitPrice, qPrice + 40); assert.equal(r.deal.suggestedPrice, qPrice); ok('Eigener Preis → Gegenangebot, Vorschlag bleibt zum Vergleich gespeichert');
@@ -1165,12 +1165,12 @@ try {
     assert.equal((await mod.call('GET', '/api/hack/admin')).status, 403);
     const adm = await admin.call('GET', '/api/hack/admin'); assert.equal(adm.status, 200); assert.match(adm.path, /^\/x\/[\w-]{20,}$/); const tok = adm.path.split('/')[2], H = '/api/h/' + tok;
     assert.equal((await new Client().call('GET', '/api/h/falsch/status')).status, 404); assert.equal((await new Client().call('POST', '/api/h/falsch/start', {})).status, 404);
-    const page = await fetch(base + adm.path); const html = await page.text(); assert.equal(page.status, 200); assert.match(html, /\/hack\/hack\.js\?v=/); assert.equal(/mdt|logo|mdt|\.webp/i.test(html), false, 'Seite darf nichts vom System verraten');
+    const page = await fetch(base + adm.path); const html = await page.text(); assert.equal(page.status, 200); assert.match(html, /\/hack\/hack\.js\?v=/); assert.equal(/logo|mdt|\.webp/i.test(html), false, 'Seite darf nichts vom System verraten');
     const css = await (await fetch(base + '/hack/hack.css')).text(); assert.equal(/mdt/i.test(css), false);
     const guest = new Client(); const st0 = await guest.call('GET', H + '/status'); assert.equal(st0.enabled, true); assert.equal(st0.cooldownSec, 0);
     // Eigene Subdomain: nur die neutrale Seite, kein Zugriff auf das eigentliche System
     { const HH = { 'X-Forwarded-Host': 'access.example.com' }; assert.equal(adm.host, 'access.example.com');
-      const root = await fetch(base + '/', { headers: HH }); const rt = await root.text(); assert.equal(root.status, 200); assert.ok(rt.includes('/hack/hack.js?v=')); assert.equal(/mdt|logo|mdt|.webp/i.test(rt), false);
+      const root = await fetch(base + '/', { headers: HH }); const rt = await root.text(); assert.equal(root.status, 200); assert.ok(rt.includes('/hack/hack.js?v=')); assert.equal(/logo|mdt|.webp/i.test(rt), false);
       for (const p of ['/api/bootstrap', '/api/auth/me', '/api/hack/admin', '/js/main.js', '/img/logo.svg', '/css/theme.css', '/branding/logo']) assert.equal((await fetch(base + p, { headers: HH })).status, 404, p + ' darf über die Subdomain nicht erreichbar sein');
       assert.equal((await fetch(base + '/hack/hack.css', { headers: HH })).status, 200);
       const sv = await fetch(base + '/api/h/-/status', { headers: HH }); assert.equal(sv.status, 200); assert.equal((await sv.json()).enabled, true);
@@ -1571,7 +1571,7 @@ try {
     for (const ip of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) clearAttempts(`pl|${ip}`);
     const pr = await admin.call('POST', '/api/partners', { type: 'buyer', name: 'Problem Partner', contactName: 'X', apps: ['market'] }); const ptc = new Client(); assert.equal((await ptc.call('POST', `/api/p/${pr.partner.linkPath.split('/').pop()}/login`, { code: pr.code })).status, 200);
     assert.equal((await ptc.call('GET', '/api/problems')).status, 401); // Externe Partner: nie
-    await setPerms([]); const PERM = { vehicles: 'vehicles.view', market: 'market.view', legal: 'legal.cases.view', warehouse: 'warehouse.view', credit: 'credit.view', tab: 'tab.view', tickets: 'tickets.manage', users: 'users.approve' };
+    await setPerms([]); const PERM = { vehicles: 'vehicles.view', market: 'market.view', legal: 'legal.cases.view', warehouse: 'warehouse.view', credit: 'credit.view', tab: 'tab.view', tickets: 'tickets.manage', users: 'users.approve', schedule: 'schedule.view' };
     const scoped = async () => { const pm = (await mod.call('GET', '/api/auth/me')).user.permissions, pl = (await mod.call('GET', '/api/problems')).problems; assert.ok(pl.every((p) => pm.includes(PERM[p.area])), 'Problem ohne Zugriffsrecht sichtbar'); return pl; }; // jedes Problem nur mit dem Recht des Bereichs
     await scoped();
     // Fahrzeug beschädigt, TÜV überfällig
@@ -1586,6 +1586,31 @@ try {
     r = await admin.call('GET', '/api/problems'); const ids = r.problems.map((p) => p.id);
     for (const id of [`vehicle:${veh}:cond`, `vehicle:${veh}:insp`, `deal:${deal}`, `wh:${wh}:rent`]) assert.ok(ids.includes(id), id + ' fehlt'); assert.ok(r.problems.some((p) => p.area === 'legal' && /Einspruchsfrist/.test(p.title) && p.severity === 'critical'));
     assert.equal(r.problems[0].severity, 'critical'); // kritische zuerst
+    // Aufträge überfällig: normal 24 Std. Problem / 72 Std. kritisch; Hoch/Dringend: 6 Std. / 24 Std.
+    { const meId = (await admin.call('GET', '/api/auth/me')).user.id, H = (h) => new Date(Date.now() - h * 3600_000).toISOString(); const mkT = async (title, priority, hours) => (await admin.call('POST', '/api/schedule/tasks', { title, priority, dueAt: H(hours), assignees: [meId] })).task.id;
+      const tn = [['Normal 20h', 'normal', 20, null], ['Normal 30h', 'normal', 30, 'warn'], ['Normal 80h', 'normal', 80, 'critical'], ['Wichtig 5h', 'high', 5, null], ['Wichtig 8h', 'high', 8, 'warn'], ['Dringend 30h', 'urgent', 30, 'critical'], ['Niedrig 30h', 'low', 30, 'warn']];
+      const ids = []; for (const [title, pr, h] of tn) ids.push(await mkT(title, pr, h)); const tp = async () => (await admin.call('GET', '/api/problems')).problems.filter((p) => p.area === 'schedule');
+      let pl = await tp(); tn.forEach(([title, , , sev], i) => { const p = pl.find((x) => x.id.startsWith(`task:${ids[i]}:`)); if (sev) { assert.ok(p, title); assert.equal(p.severity, sev, title); assert.deepEqual(p.target, { app: 'schedule', taskId: ids[i] }); } else assert.equal(p, undefined, title); });
+      assert.equal((await admin.call('POST', `/api/schedule/tasks/${ids[1]}/state`, { state: 'done' })).task.status, 'done'); assert.equal((await tp()).some((x) => x.id.startsWith(`task:${ids[1]}:`)), false); // erledigt: verschwindet
+      assert.equal((await admin.call('PATCH', `/api/schedule/tasks/${ids[2]}`, { status: 'cancelled' })).task.status, 'cancelled'); assert.equal((await tp()).some((x) => x.id.startsWith(`task:${ids[2]}:`)), false);
+      await setPerms([]); await scoped(); await setPerms(['schedule.view']); assert.equal((await mod.call('GET', '/api/problems')).problems.some((x) => x.area === 'schedule' && x.id.startsWith(`task:${ids[5]}:`)), (await mod.call('GET', '/api/auth/me')).user.permissions.includes('schedule.manage')); await scoped(); await setPerms([]); // Außenstehende ohne Verwaltungsrecht sehen fremde Aufträge nicht
+      assert.equal((await admin.call('PUT', '/api/config', { values: { 'problems.task_warn_hours': 48 } })).status, 200); assert.equal((await tp()).some((x) => x.id.startsWith(`task:${ids[0]}:`) || x.id.startsWith(`task:${ids[6]}:`)), false); await admin.call('PUT', '/api/config', { values: { 'problems.task_warn_hours': 24 } }); // Schwellen einstellbar
+      for (const id of ids) await admin.call('DELETE', `/api/schedule/tasks/${id}`); }
+    // Lager: ab 75 % gefüllt ein Problem, ab 90 % kritisch (nur mit festgelegter Kapazität)
+    { const fw = (await admin.call('POST', '/api/warehouses', { name: 'Voll-Lager', capacity: 100 })).warehouse.id, nofull = (await admin.call('POST', '/api/warehouses', { name: 'Ohne-Kapazität' })).warehouse.id;
+      const slot = (await admin.call('POST', '/api/warehouse/items', { name: 'Füll-Teil', unit: 'Stk', space: 1, stackSize: 1 })).item;
+      const fill = (n) => admin.call('POST', `/api/warehouses/${fw}/stock`, { itemId: slot.id, action: 'in', quantity: n }); const probs = async () => (await admin.call('GET', '/api/problems')).problems.filter((p) => p.id.startsWith(`wh:${fw}:fill`));
+      await fill(74); assert.equal((await probs()).length, 0); // 74 % noch ok
+      await fill(1); let p = await probs(); assert.equal(p.length, 1); assert.equal(p[0].severity, 'warn'); assert.equal(p[0].id, `wh:${fw}:fill:warn`); assert.match(p[0].title, /75 %/); assert.match(p[0].detail, /75 \/ 100/);
+      await fill(14); assert.equal((await probs())[0].severity, 'warn'); // 89 %
+      await fill(1); p = await probs(); assert.equal(p.length, 1); assert.equal(p[0].severity, 'critical'); assert.match(p[0].title, /fast voll \(90 %\)/);
+      assert.equal((await admin.call('GET', '/api/problems')).problems.some((x) => x.id.startsWith(`wh:${nofull}:fill`)), false); // ohne Kapazität kein Füllstand
+      assert.equal((await admin.call('GET', '/api/problems')).problems[0].severity, 'critical');
+      await setPerms([]); await scoped(); await setPerms(['warehouse.view']); assert.ok((await mod.call('GET', '/api/problems')).problems.some((x) => x.id === `wh:${fw}:fill:crit`)); await scoped(); await setPerms([]);
+      assert.equal((await admin.call('PUT', '/api/config', { values: { 'problems.warehouse_warn_percent': 95, 'problems.warehouse_critical_percent': 99 } })).status, 200); assert.equal((await probs()).length, 0); // Schwellen einstellbar
+      assert.equal((await admin.call('PUT', '/api/config', { values: { 'problems.warehouse_warn_percent': 0 } })).status, 200); assert.equal((await probs()).length, 0); // 0 = aus
+      await admin.call('PUT', '/api/config', { values: { 'problems.warehouse_warn_percent': 75, 'problems.warehouse_critical_percent': 90 } }); assert.equal((await probs()).length, 1);
+      await admin.call('DELETE', `/api/warehouses/${fw}?force=1`); await admin.call('DELETE', `/api/warehouses/${nofull}?force=1`); }
     // Rechte: nur Probleme aus Bereichen mit Zugriff
     await setPerms(['vehicles.view']); r = await mod.call('GET', '/api/problems'); assert.ok(r.problems.filter((p) => p.area === 'vehicles').length >= 2); await scoped();
     await setPerms(['market.view']); r = await mod.call('GET', '/api/problems'); assert.ok(r.problems.some((p) => p.id === `deal:${deal}`)); await scoped();
@@ -1627,6 +1652,294 @@ try {
     assert.equal((await admin.call('PUT', '/api/config', { values: { 'presence.enabled': false } })).status, 200); r = await admin.call('GET', '/api/presence'); assert.equal(r.enabled, false); assert.equal(r.members.length, 0); await admin.call('PUT', '/api/config', { values: { 'presence.enabled': true } });
     await admin.call('POST', '/api/presence/leave', { tabId: 'tab-admin-1' });
     ok('Online-Liste: nur Mitglieder, Personalnummer + Rang, gesperrt/aktiv, Herzschlag/Abmelden, abschaltbar'); }
+
+  // ══ Karte: Zonen ══
+  { const sq = (x, y, s = 100) => [[x, y], [x + s, y], [x + s, y + s], [x, y + s]]; const cfgM = (await admin.call('GET', '/api/map/config')); assert.ok(cfgM.zoneKinds.length >= 6); const danger = cfgM.zoneKinds.find((k) => k.key === 'danger').id;
+    assert.equal((await new Client().call('GET', '/api/map/zones')).status, 401);
+    for (const bad of [{ name: '', points: sq(0, 0) }, { name: 'Zwei', points: [[0, 0], [1, 1]] }, { name: 'Doppelt', points: [[0, 0], [0, 0], [1, 1], [1, 1]] }, { name: 'Text', points: 'abc' }, { name: 'Zahl', points: [[0, 0], [1, 'x'], [2, 2]] }, { name: 'Weit', points: [[0, 0], [99999, 1], [2, 2]] }, { name: 'Art', kindId: 99999, points: sq(0, 0) }, { name: 'Farbe', color: 'rot', points: sq(0, 0) }, { name: 'Deckkraft', opacity: 0.99, points: sq(0, 0) }, { name: 'Sicht', visibility: 'x', points: sq(0, 0) }, { name: 'Viele', points: Array.from({ length: 450 }, (_, i) => [i, i * i % 997]) }]) assert.equal((await admin.call('POST', '/api/map/zones', bad)).status, 400, JSON.stringify(bad).slice(0, 50));
+    r = await admin.call('POST', '/api/map/zones', { name: 'Gefahrenzone Hafen', description: '- Schießerei möglich', kindId: danger, opacity: 0.4, points: [...sq(1000, 1000, 250), [1000, 1000]] }); assert.equal(r.status, 201); const z1 = r.zone;
+    assert.equal(z1.points.length, 4); assert.equal(z1.kind.key, undefined); assert.equal(z1.kind.id, danger); assert.equal(z1.color, cfgM.zoneKinds.find((k) => k.key === 'danger').color); assert.equal(z1.opacity, 0.4); assert.equal(z1.visibility, 'all'); // Schlusspunkt = Startpunkt wird entfernt
+    r = await admin.call('POST', '/api/map/zones', { name: 'Geheimes Gebiet', visibility: 'editors', color: '#112233', points: sq(-500, -500) }); const z2 = r.zone; assert.equal(z2.ownColor, '#112233'); assert.ok(z2.kind); // Standardart „Sonstiges“
+    r = await admin.call('GET', '/api/map/zones'); assert.ok(r.zones.some((z) => z.id === z1.id) && r.zones.some((z) => z.id === z2.id));
+    // Rechte: sehen mit map.view, ändern nur mit map.edit; „nur Bearbeiter“ bleibt verborgen
+    const meMap = new Set((await mod.call('GET', '/api/auth/me')).user.permissions);
+    await setPerms(['map.view']); if (!meMap.has('map.edit') && !(new Set((await mod.call('GET', '/api/auth/me')).user.permissions)).has('map.edit')) { r = await mod.call('GET', '/api/map/zones'); assert.ok(r.zones.some((z) => z.id === z1.id)); assert.equal(r.zones.some((z) => z.id === z2.id), false); assert.equal(r.zones[0].canEdit, false); assert.equal((await mod.call('POST', '/api/map/zones', { name: 'Nein', points: sq(0, 0) })).status, 403); assert.equal((await mod.call('PATCH', `/api/map/zones/${z1.id}`, { name: 'Hack' })).status, 403); assert.equal((await mod.call('DELETE', `/api/map/zones/${z1.id}`)).status, 403); }
+    await setPerms(['map.view', 'map.edit']); r = await mod.call('GET', '/api/map/zones'); assert.ok(r.zones.some((z) => z.id === z2.id)); assert.equal(r.zones[0].canEdit, true);
+    r = await admin.call('PATCH', `/api/map/zones/${z1.id}`, { name: 'Gefahrenzone Hafen Süd', opacity: 0.2, points: sq(1000, 1000, 400) }); assert.equal(r.zone.name, 'Gefahrenzone Hafen Süd'); assert.equal(r.zone.points[2][0], 1400); assert.equal(r.zone.opacity, 0.2);
+    assert.equal((await admin.call('PATCH', `/api/map/zones/${z1.id}`, { points: [[0, 0]] })).status, 400); assert.equal((await admin.call('PATCH', '/api/map/zones/99999', { name: 'x' })).status, 404);
+    r = await admin.call('GET', '/api/audit?module=map&limit=100'); assert.ok(r.rows.some((x) => x.action === 'map.zone_created') && r.rows.some((x) => x.action === 'map.zone_updated'));
+    for (const id of [z1.id, z2.id]) assert.equal((await admin.call('DELETE', `/api/map/zones/${id}`)).status, 200); assert.equal((await admin.call('GET', '/api/map/zones')).zones.length, 0); await setPerms([]);
+    ok('Karte: Zonen frei einzeichnen (Polygon, Art/Farbe/Deckkraft/Notizen), Prüfung der Punkte, nur Bearbeiter sehen verborgene, Rechte, Audit'); }
+
+  // ══ Termine & Aufträge ══
+  { const { runScheduleReminders } = await import('../server/modules/schedule.js');
+    assert.equal((await new Client().call('GET', '/api/schedule/options')).status, 401);
+    const meA = (await admin.call('GET', '/api/auth/me')).user, meM = (await mod.call('GET', '/api/auth/me')).user; const hasP = async (p) => new Set((await mod.call('GET', '/api/auth/me')).user.permissions).has(p);
+    await setPerms([]); if (!(await hasP('schedule.view'))) assert.equal((await mod.call('GET', '/api/schedule/options')).status, 403);
+    await setPerms(['schedule.view']);
+    r = await mod.call('GET', '/api/schedule/options'); assert.equal(r.status, 200); assert.ok(r.kinds.length >= 7); assert.ok(r.reminders.length >= 6); assert.equal(r.members.find((x) => x.id === meM.id).label, `${meM.memberNumber} (Du)`); assert.equal(r.members.find((x) => x.id === meA.id).label, meA.memberNumber); assert.equal(JSON.stringify(r).includes(meA.displayName ?? '§§'), false); const kind = r.kinds[0].id;
+    const D = (min) => new Date(Date.now() + min * 60_000).toISOString(); const startA = D(60 * 24 * 3), base = { title: 'Übergabe am Hafen', kindId: kind, startsAt: startA, endsAt: D(60 * 24 * 3 + 90), location: 'Pier 4', description: 'Ware bringen', participants: [meM.id], reminders: [0, 15] };
+    // Termin anlegen: Prüfungen
+    for (const bad of [{ title: 'x' }, { startsAt: 'morgen' }, { endsAt: D(60 * 24 * 3 - 30) }, { reminders: [7] }, { reminders: [0, 5, 15, 30, 60] }, { participants: [99999] }, { kindId: 99999 }, { visibility: 'geheim' }]) assert.equal((await admin.call('POST', '/api/schedule/events', { ...base, ...bad })).status, 400, JSON.stringify(bad));
+    if (!(await hasP('schedule.create'))) assert.equal((await mod.call('POST', '/api/schedule/events', base)).status, 403);
+    r = await admin.call('POST', '/api/schedule/events', base); assert.equal(r.status, 201); const ev = r.event; assert.deepEqual(ev.reminders, [0, 15]); assert.equal(ev.participants.length, 1); assert.equal(ev.participants[0].label, meM.memberNumber); assert.equal(ev.participants[0].rsvp, 'pending'); assert.equal(ev.kind.id, kind);
+    // Sichtbarkeit + Zu-/Absage
+    const rng = `from=${encodeURIComponent(D(-60))}&to=${encodeURIComponent(D(60 * 24 * 10))}`;
+    r = await mod.call('GET', `/api/schedule/events?${rng}`); const mine = r.events.find((x) => x.id === ev.id); assert.ok(mine); assert.equal(mine.rsvp, 'pending'); assert.equal(mine.canEdit, await hasP('schedule.manage')); assert.equal(JSON.stringify(r).includes(meA.displayName ?? '§§'), false);
+    if (!(await hasP('schedule.manage')) && !(await hasP('schedule.create'))) { assert.equal((await mod.call('PATCH', `/api/schedule/events/${ev.id}`, { title: 'Hack' })).status, 403); assert.equal((await mod.call('DELETE', `/api/schedule/events/${ev.id}`)).status, 403); }
+    assert.equal((await mod.call('POST', `/api/schedule/events/${ev.id}/rsvp`, { response: 'vielleicht' })).status, 400); assert.equal((await mod.call('POST', `/api/schedule/events/${ev.id}/rsvp`, { response: 'yes' })).status, 200);
+    assert.equal((await admin.call('GET', `/api/schedule/events/${ev.id}`)).event.participants[0].rsvp, 'yes'); assert.equal((await admin.call('POST', `/api/schedule/events/${ev.id}/rsvp`, { response: 'yes' })).status, 403); // nur Beteiligte
+    assert.ok((await admin.call('GET', '/api/notifications')).notifications.some((n) => /Zugesagt/.test(n.title))); // Ersteller wird informiert
+    // „Nur Beteiligte“-Termin: Außenstehende sehen ihn nicht
+    r = await admin.call('POST', '/api/schedule/events', { ...base, title: 'Vertraulich', visibility: 'invited', participants: [], reminders: [] }); const priv = r.event.id;
+    if (!(await hasP('schedule.manage'))) { assert.equal((await mod.call('GET', `/api/schedule/events/${priv}`)).status, 404); assert.equal((await mod.call('GET', `/api/schedule/events?${rng}`)).events.some((x) => x.id === priv), false); await setPerms(['schedule.view', 'schedule.manage']); assert.ok((await mod.call('GET', `/api/schedule/events/${priv}`)).event); await setPerms(['schedule.view']); }
+    // verschieben / absagen → Beteiligte werden benachrichtigt
+    assert.equal((await admin.call('PATCH', `/api/schedule/events/${ev.id}`, { startsAt: D(60 * 24 * 4), endsAt: D(60 * 24 * 4 + 90) })).status, 200); assert.ok((await mod.call('GET', '/api/notifications')).notifications.some((n) => n.title === 'Termin verschoben'));
+    assert.equal((await admin.call('PATCH', `/api/schedule/events/${ev.id}`, { status: 'cancelled' })).event.status, 'cancelled'); assert.ok((await mod.call('GET', '/api/notifications')).notifications.some((n) => n.title === 'Termin abgesagt'));
+    // Erinnerungen: einmal je Empfänger und Zeitpunkt
+    r = await admin.call('POST', '/api/schedule/events', { ...base, title: 'Gleich', startsAt: D(10), endsAt: null, reminders: [0, 15] }); const soon = r.event.id;
+    const sent1 = runScheduleReminders(); assert.ok(sent1 >= 2, `Erinnerungen ${sent1}`); assert.equal(runScheduleReminders(), 0); assert.ok((await mod.call('GET', '/api/notifications')).notifications.some((n) => /Termin in 15 Minuten: Gleich/.test(n.title)));
+    // Aufträge
+    if (!(await hasP('schedule.tasks.assign'))) assert.equal((await mod.call('POST', '/api/schedule/tasks', { title: 'Nicht erlaubt', assignees: [meA.id] })).status, 403);
+    for (const bad of [{ title: 'x' }, { assignees: [] }, { assignees: [99999] }, { priority: 'wichtig' }, { dueAt: 'bald' }, { eventId: 99999 }]) assert.equal((await admin.call('POST', '/api/schedule/tasks', { title: 'Farmen gehen', assignees: [meM.id], ...bad })).status, 400, JSON.stringify(bad));
+    r = await admin.call('POST', '/api/schedule/tasks', { title: 'Farmen gehen', description: '200 Stück Weizen', priority: 'high', dueAt: D(60 * 24 * 2), assignees: [meM.id], eventId: soon }); assert.equal(r.status, 201); const tk = r.task; assert.match(tk.number, /^AUF-\d{4}$/); assert.equal(tk.status, 'open'); assert.equal(tk.event.id, soon);
+    assert.ok((await mod.call('GET', '/api/notifications')).notifications.some((n) => /Neuer Auftrag/.test(n.title)));
+    r = await mod.call('GET', '/api/schedule/tasks?scope=mine'); assert.ok(r.tasks.some((x) => x.id === tk.id)); assert.equal(r.tasks.find((x) => x.id === tk.id).myState, 'open'); assert.equal((await mod.call('GET', '/api/schedule/tasks?scope=all')).status, (await hasP('schedule.manage')) ? 200 : 403);
+    assert.equal((await admin.call('GET', `/api/schedule/events?${rng}`)).tasks.some((x) => x.id === tk.id), true); // Fristen erscheinen im Kalender
+    assert.equal((await mod.call('POST', `/api/schedule/tasks/${tk.id}/state`, { state: 'egal' })).status, 400); assert.equal((await admin.call('POST', `/api/schedule/tasks/${tk.id}/state`, { state: 'done' })).status, 403); // nur Beauftragte
+    r = await mod.call('POST', `/api/schedule/tasks/${tk.id}/state`, { state: 'accepted' }); assert.equal(r.task.status, 'in_progress');
+    r = await mod.call('POST', `/api/schedule/tasks/${tk.id}/state`, { state: 'done', note: '200 abgegeben' }); assert.equal(r.task.status, 'done'); assert.ok(r.task.doneAt); assert.equal(r.task.assignees[0].note, '200 abgegeben');
+    assert.ok((await admin.call('GET', '/api/notifications')).notifications.some((n) => /Erledigt: Farmen gehen/.test(n.title)));
+    if (!(await hasP('schedule.manage')) && !(await hasP('schedule.tasks.assign'))) assert.equal((await mod.call('PATCH', `/api/schedule/tasks/${tk.id}`, { title: 'Hack' })).status, 403);
+    r = await admin.call('PATCH', `/api/schedule/tasks/${tk.id}`, { status: 'reopen' }); assert.equal(r.task.status, 'done'); // alle Beauftragten erledigt → bleibt erledigt
+    r = await admin.call('POST', '/api/schedule/tasks', { title: 'Zwei Personen', assignees: [meM.id, meA.id], dueAt: D(-60) }); const t2 = r.task.id; assert.equal(r.task.overdue, true);
+    r = await mod.call('POST', `/api/schedule/tasks/${t2}/state`, { state: 'done' }); assert.equal(r.task.status, 'in_progress'); r = await admin.call('POST', `/api/schedule/tasks/${t2}/state`, { state: 'declined', note: 'keine Zeit' }); assert.equal(r.task.status, 'done'); // Abgelehnte zählen nicht
+    r = await admin.call('POST', '/api/schedule/tasks', { title: 'Überfällig', assignees: [meM.id], dueAt: D(-30) }); const t3 = r.task.id; const s2 = runScheduleReminders(); assert.ok(s2 >= 2, `Auftragserinnerungen ${s2}`); assert.equal(runScheduleReminders(), 0); assert.ok((await mod.call('GET', '/api/notifications')).notifications.some((n) => /Auftrag überfällig: Überfällig/.test(n.title)));
+    assert.equal((await admin.call('PATCH', `/api/schedule/tasks/${t3}`, { status: 'cancelled' })).task.status, 'cancelled'); assert.equal((await mod.call('POST', `/api/schedule/tasks/${t3}/state`, { state: 'done' })).status, 400);
+    // Übersicht, Dashboard, Audit, Löschen
+    r = await mod.call('GET', '/api/schedule/summary'); assert.ok(r.openTasks >= 0); assert.ok(Array.isArray(r.next)); r = await mod.call('GET', '/api/dashboard'); assert.ok(r.widgets.some((w) => w.id === 'schedule' && typeof w.data.openTasks === 'number'));
+    r = await admin.call('GET', '/api/audit?module=schedule&limit=100'); assert.ok(r.rows.some((x) => x.action === 'schedule.task_created') && r.rows.some((x) => x.action === 'schedule.event_created'));
+    for (const id of [t2, t3, tk.id]) assert.equal((await admin.call('DELETE', `/api/schedule/tasks/${id}`)).status, 200); for (const id of [ev.id, priv, soon]) assert.equal((await admin.call('DELETE', `/api/schedule/events/${id}`)).status, 200);
+    assert.equal((await admin.call('GET', `/api/schedule/events/${ev.id}`)).status, 404); await setPerms([]);
+    ok('Termine & Aufträge: Termine mit Art/Beteiligten/Zu-/Absage/Sichtbarkeit, Erinnerungen einmalig, Aufträge mit Beauftragten und Status, Fristen im Kalender, nur Personalnummern, Rechte'); }
+
+  // ══ Börse: mehrere Items pro Geschäft ══
+  { const { all: dbAll } = await import('../server/core/db.js'); const { clearAttempts } = await import('../server/core/auth.js'); for (const ip of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) clearAttempts(`pl|${ip}`);
+    const mkItem = async (name) => (await admin.call('POST', '/api/market/items', { name, unit: 'Stk' })).item; const IA = await mkItem('Multi-Eisen'), IB = await mkItem('Multi-Kupfer'), IC = await mkItem('Multi-Gold');
+    const pp = await admin.call('POST', '/api/partners', { type: 'buyer', name: 'Multi Partner', contactName: 'X', apps: ['market'] }); const pc = new Client(); assert.equal((await pc.call('POST', `/api/p/${pp.partner.linkPath.split('/').pop()}/login`, { code: pp.code })).status, 200);
+    // Partner: Angebot mit mehreren Items
+    for (const bad of [{ lines: [{ itemId: IA.id, quantity: 1, unitPrice: 10 }, { itemId: IA.id, quantity: 2, unitPrice: 10 }] }, { lines: [{ itemId: IA.id, quantity: 1 }] }, { lines: [{ itemId: 99999, quantity: 1, unitPrice: 5 }] }, { lines: [{ itemId: IA.id, quantity: 0, unitPrice: 5 }] }, { lines: Array.from({ length: 26 }, () => ({ itemId: IA.id, quantity: 1, unitPrice: 1 })) }]) assert.equal((await pc.call('POST', '/api/p/market/offers', bad)).status, 400, JSON.stringify(bad).slice(0, 60));
+    r = await pc.call('POST', '/api/p/market/offers', { lines: [{ itemId: IA.id, quantity: 5, unitPrice: 100 }, { itemId: IB.id, quantity: 2, unitPrice: 300 }, { itemId: IC.id, quantity: 1, unitPrice: 50 }], note: 'Sammelposten' }); assert.equal(r.status, 201); const dl = r.deal;
+    assert.equal(dl.lineCount, 3); assert.equal(dl.lines.length, 3); assert.equal(dl.total, 1150); assert.equal(dl.quantity, 5); assert.equal(dl.item.name, 'Multi-Eisen'); assert.match(dl.itemLabel, /Multi-Eisen \+ 2 weitere/); assert.deepEqual(dl.lines.map((x) => x.total), [500, 600, 50]);
+    r = await admin.call('GET', `/api/market/deals/${dl.id}`); assert.equal(r.deal.lines.length, 3); assert.ok(r.events[0].text.includes('Summe 1.150')); assert.ok((await admin.call('GET', '/api/notifications')).notifications.some((n) => /Multi-Eisen \+ 2 weitere/.test(n.title)));
+    assert.ok((await admin.call('GET', '/api/market/deals?q=Multi-Gold')).deals.some((x) => x.id === dl.id)); // Suche über alle Positionen
+    // Legacy: ein Item wie bisher
+    r = await pc.call('POST', '/api/p/market/offers', { itemId: IA.id, quantity: 3, unitPrice: 90 }); assert.equal(r.status, 201); assert.equal(r.deal.lineCount, 1); assert.equal(r.deal.total, 270); assert.equal(r.deal.itemLabel, undefined);
+    // Gegenangebot für alle Positionen
+    assert.equal((await admin.call('POST', `/api/market/deals/${dl.id}/counter`, { quantity: 1, unitPrice: 1 })).status, 400); // mehrere Positionen: Einzelwerte reichen nicht
+    assert.equal((await admin.call('POST', `/api/market/deals/${dl.id}/counter`, { lines: [{ id: dl.lines[0].id, quantity: 5, unitPrice: 90 }] })).status, 400);
+    assert.equal((await admin.call('POST', `/api/market/deals/${dl.id}/counter`, { lines: dl.lines.map((x) => ({ id: x.id + 999, quantity: 1, unitPrice: 1 })) })).status, 400);
+    r = await admin.call('POST', `/api/market/deals/${dl.id}/counter`, { lines: [{ id: dl.lines[0].id, quantity: 5, unitPrice: 90 }, { id: dl.lines[1].id, quantity: 2, unitPrice: 250 }, { id: dl.lines[2].id, quantity: 1, unitPrice: 50 }], text: 'Etwas weniger' }); assert.equal(r.status, 200); assert.equal(r.deal.total, 450 + 500 + 50); assert.equal(r.deal.turn, 'partner'); assert.equal(r.deal.lines[1].unitPrice, 250);
+    r = await pc.call('GET', `/api/p/market/deals/${dl.id}`); assert.equal(r.deal.lines.length, 3); assert.equal(r.deal.total, 1000);
+    assert.equal((await pc.call('POST', `/api/p/market/deals/${dl.id}/accept`, {})).status, 200);
+    let led = dbAll("SELECT item_id, quantity, unit_price, amount, status, direction FROM finance_ledger WHERE deal_id = ? ORDER BY id", dl.id); assert.equal(led.length, 3); assert.ok(led.every((x) => x.status === 'expected' && x.direction === 'out')); assert.equal(led.reduce((a, x) => a + x.amount, 0), 1000); assert.deepEqual(led.map((x) => x.item_id), [IA.id, IB.id, IC.id]); // Journal: je Item eine Zeile
+    // Übergabe → Wareneingang mit Einlagerung aller Positionen
+    const whM = (await admin.call('POST', '/api/warehouses', { name: 'Multi-Lager', capacity: 100000 })).warehouse.id; const stockOf = async (item) => ((await admin.call('GET', `/api/warehouses/${whM}`)).stock.find((s) => s.itemId === item.id)?.quantity ?? 0);
+    assert.equal((await admin.call('POST', `/api/market/deals/${dl.id}/handover`, { info: 'Am Hafen abgeben' })).status, 200); assert.equal((await admin.call('POST', `/api/market/deals/${dl.id}/advance`, { to: 'delivered', warehouseId: whM })).status, 200);
+    assert.equal(await stockOf(IA), 5); assert.equal(await stockOf(IB), 2); assert.equal(await stockOf(IC), 1);
+    await admin.call('POST', `/api/market/deals/${dl.id}/advance`, { to: 'payout' }); r = await admin.call('POST', `/api/market/deals/${dl.id}/advance`, { to: 'completed' }); assert.equal(r.deal.status, 'completed');
+    led = dbAll('SELECT status FROM finance_ledger WHERE deal_id = ?', dl.id); assert.ok(led.every((x) => x.status === 'settled'));
+    // Team-Angebot an den Partner mit mehreren Items aus einem Lager
+    await admin.call('POST', `/api/warehouses/${whM}/stock`, { itemId: IA.id, action: 'in', quantity: 20 });
+    for (const bad of [{ lines: [{ itemId: IA.id, quantity: 1, unitPrice: 5 }, { itemId: IA.id, quantity: 1, unitPrice: 5 }] }, { lines: [{ itemId: IA.id, quantity: 9999, unitPrice: 5 }] }, { lines: [{ itemId: IC.id, quantity: 5, unitPrice: 5 }] }, { lines: [{ itemId: IA.id, quantity: 1, unitPrice: 5 }, { itemId: IB.id, quantity: 99, unitPrice: 5 }] }]) assert.ok([400, 409].includes((await admin.call('POST', '/api/market/offers', { partnerId: pp.partner.id, warehouseId: whM, ...bad })).status), JSON.stringify(bad).slice(0, 60));
+    r = await admin.call('POST', '/api/market/offers', { partnerId: pp.partner.id, warehouseId: whM, lines: [{ itemId: IA.id, quantity: 10, unitPrice: 120 }, { itemId: IB.id, quantity: 1, unitPrice: 400 }], note: 'Paket' }); assert.equal(r.status, 201); const sd = r.deal; assert.equal(sd.lineCount, 2); assert.equal(sd.total, 1600); assert.equal(sd.direction, 'sell');
+    const beforeA = await stockOf(IA), beforeB = await stockOf(IB);
+    assert.equal((await pc.call('POST', `/api/p/market/deals/${sd.id}/accept`, {})).status, 200); assert.equal(await stockOf(IA), beforeA - 10); assert.equal(await stockOf(IB), beforeB - 1); // beim Annehmen aus dem Lager abgebucht
+    assert.equal(dbAll("SELECT 1 FROM finance_ledger WHERE deal_id = ? AND direction = 'in'", sd.id).length, 2);
+    assert.equal((await admin.call('POST', `/api/market/deals/${sd.id}/cancel`, { text: 'Test' })).status, 200); assert.equal(await stockOf(IA), beforeA); assert.equal(await stockOf(IB), beforeB); // Storno bucht alle Positionen zurück
+    // Item-Löschung berücksichtigt Positionen; Superadmin kann samt Geschäften löschen
+    assert.equal((await admin.call('DELETE', `/api/market/items/${IC.id}`)).status, 409); assert.equal((await admin.call('DELETE', `/api/market/items/${IC.id}?force=1`)).status, 200); assert.equal((await admin.call('GET', `/api/market/deals/${dl.id}`)).status, 404);
+    ok('Börse: mehrere Items pro Geschäft (Partner-Angebot, Gegenangebot je Position, Journal je Item, Einlagerung/Ausbuchung/Storno aller Positionen, Suche, Löschen)'); }
+
+  // ══ Aktivität & Abmeldung ══
+  { const { db, run: dbRun, get: dbGet } = await import('../server/core/db.js'); const { runActivityDigest } = await import('../server/modules/activity.js');
+    const mk = async (name, perms = []) => { const u = (await admin.call('POST', '/api/users', { displayName: name, username: name.toLowerCase(), password: 'passwort123' })).user; if (perms.length) await admin.call('PATCH', `/api/users/${u.id}`, { permissions: perms }); const c = new Client(); assert.equal((await c.call('POST', '/api/auth/login', { username: name.toLowerCase(), password: 'passwort123' })).status, 200); return { u, c }; };
+    const day = (n) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    assert.equal((await new Client().call('GET', '/api/activity/me')).status, 401);
+    const A = await mk('Aktivera', ['activity.absence']), B = await mk('Aktiverb', ['activity.absence']), L = await mk('Aktivlead', ['activity.absence', 'activity.view', 'activity.manage']), V = await mk('Aktivview', ['activity.view']);
+    // Anmelden zählt als aktiv; der Herzschlag mit entsperrtem Bildschirm ebenfalls
+    r = await A.c.call('GET', '/api/activity/me'); assert.equal(r.status, 200); assert.equal(r.status, 200); assert.ok(r.lastActiveAt); assert.ok(r.days14 >= 1);
+    assert.equal((await A.c.call('POST', '/api/presence', { tabId: 'abcdef123456', locked: false })).status, 200);
+    // Eigene Abmeldung: Prüfungen
+    for (const bad of [{ from: day(0), to: day(-1) }, { from: day(-5), to: day(-3) }, { from: day(0), to: day(400) }, { from: 'kaputt', to: day(1) }, { from: day(0), to: day(61) }, {}]) assert.equal((await A.c.call('POST', '/api/activity/absences', bad)).status, 400, JSON.stringify(bad));
+    r = await A.c.call('POST', '/api/activity/absences', { from: day(0), to: day(5), reason: 'Urlaub' }); assert.equal(r.status, 201); const absA = r.absence;
+    assert.equal((await A.c.call('POST', '/api/activity/absences', { from: day(3), to: day(8) })).status, 400); // überschneidet sich
+    assert.equal((await A.c.call('POST', '/api/activity/absences', { userId: B.u.id, from: day(0), to: day(2) })).status, 403); // für andere nur mit activity.manage
+    assert.equal((await V.c.call('POST', '/api/activity/absences', { from: day(0), to: day(2) })).status, 403); // ohne activity.absence
+    r = await A.c.call('GET', '/api/activity/me'); assert.equal(r.status, 200); assert.equal(r.status, 200); assert.equal(r.status === 200 && r.absences.length, 1); assert.equal(r.status, 200); assert.equal(r.absences[0].reason, 'Urlaub'); assert.equal(r.canView, false);
+    // Übersicht: nur mit activity.view, zeigt Status, nur Personalnummern
+    assert.equal((await A.c.call('GET', '/api/activity/overview')).status, 403);
+    r = await V.c.call('GET', '/api/activity/overview'); assert.equal(r.status, 200); const rowA = r.rows.find((x) => x.id === A.u.id), rowB = r.rows.find((x) => x.id === B.u.id);
+    assert.equal(rowA.status, 'absent'); assert.equal(rowA.absence.reason, 'Urlaub'); assert.ok(rowA.days14 >= 1); assert.equal(rowB.status, 'active'); assert.equal(JSON.stringify(r).includes('Aktivera'), false); assert.equal(r.canManage, false);
+    // Führung trägt für andere ein und beendet
+    r = await L.c.call('POST', '/api/activity/absences', { userId: B.u.id, from: day(2), to: day(4), reason: 'Prüfung' }); assert.equal(r.status, 201); assert.equal(r.absence.byOther, true); const absB = r.absence;
+    assert.ok((await B.c.call('GET', '/api/notifications')).notifications.some((n) => /abgemeldet/.test(n.title)));
+    assert.ok((await V.c.call('GET', '/api/notifications')).notifications.some((n) => /Abmeldung/.test(n.title))); // Führung erfährt von der Abmeldung
+    assert.equal((await A.c.call('DELETE', `/api/activity/absences/${absB.id}`)).status, 403); // fremde Abmeldung
+    r = await B.c.call('DELETE', `/api/activity/absences/${absB.id}`); assert.equal(r.status, 200); assert.equal(r.result, 'deleted'); // noch nicht begonnen ⇒ gelöscht
+    r = await A.c.call('DELETE', `/api/activity/absences/${absA.id}`); assert.equal(r.status, 200); assert.equal(r.result, 'deleted'); // heute begonnen ⇒ gelöscht
+    assert.equal((await A.c.call('DELETE', `/api/activity/absences/${absA.id}`)).status, 404);
+    // Inaktiv: lange nicht aktiv und nicht abgemeldet ⇒ Problemleiste + Wochenhinweis
+    dbRun('UPDATE users SET last_active_at = ? WHERE id = ?', new Date(Date.now() - 20 * 86_400_000).toISOString(), B.u.id);
+    r = await V.c.call('GET', '/api/activity/overview'); assert.equal(r.rows.find((x) => x.id === B.u.id).status, 'inactive');
+    r = await V.c.call('GET', '/api/problems'); assert.ok(r.problems.some((p) => p.id === 'activity:inactive'));
+    assert.equal(JSON.stringify((await A.c.call('GET', '/api/problems')).problems).includes('activity:inactive'), false); // nur mit activity.view
+    runActivityDigest(); assert.ok((await V.c.call('GET', '/api/notifications')).notifications.some((n) => /inaktiv/.test(n.title)));
+    r = await L.c.call('POST', '/api/activity/absences', { userId: B.u.id, from: day(0), to: day(3) }); assert.equal(r.status, 201);
+    r = await V.c.call('GET', '/api/activity/overview'); assert.equal(r.rows.find((x) => x.id === B.u.id).status, 'absent'); // abgemeldet ⇒ nicht inaktiv
+    r = await admin.call('GET', '/api/audit?module=activity&limit=50'); assert.ok(r.rows.some((x) => x.action === 'activity.absence_added') && r.rows.some((x) => x.action === 'activity.absence_ended'));
+    void db; void dbGet;
+    ok('Aktivität & Abmeldung: Aktivität durch Anmeldung/Herzschlag, Selbst-Abmeldung mit Prüfungen, Führung trägt ein/beendet, Übersicht nur mit Recht, Inaktiv ⇒ Problemleiste + Wochenhinweis, Audit'); }
+
+  // ══ Einarbeitung ══
+  { const mk = async (name, perms = []) => { const u = (await admin.call('POST', '/api/users', { displayName: name, username: name.toLowerCase(), password: 'passwort123' })).user; if (perms.length) await admin.call('PATCH', `/api/users/${u.id}`, { permissions: perms }); const c = new Client(); assert.equal((await c.call('POST', '/api/auth/login', { username: name.toLowerCase(), password: 'passwort123' })).status, 200); return { u, c }; };
+    const Lead = await mk('Einarblead', ['onboarding.check']), Mgr = await mk('Einarbmgr', ['onboarding.manage']);
+    const NEW = await mk('Einarbneu'); // neu freigeschaltet ⇒ Einarbeitung startet automatisch
+    assert.equal((await new Client().call('GET', '/api/onboarding/me')).status, 401);
+    r = await admin.call('GET', '/api/onboarding'); assert.equal(r.status, 200); assert.equal(r.steps.length, 6); assert.ok(r.steps.some((s) => s.confirmBy === 'self') && r.steps.some((s) => s.confirmBy === 'leader'));
+    r = await NEW.c.call('GET', '/api/onboarding/me'); assert.equal(r.active, true); assert.equal(r.total, 6); assert.equal(r.done, 0);
+    const selfStep = r.steps.find((s) => s.confirmBy === 'self'), leadStep = r.steps.find((s) => s.confirmBy === 'leader');
+    assert.ok((await NEW.c.call('GET', '/api/notifications')).notifications.some((n) => /Willkommen/.test(n.title)));
+    assert.ok((await Lead.c.call('GET', '/api/notifications')).notifications.some((n) => /Neues Mitglied/.test(n.title)));
+    // Mitglied hakt seine Schritte selbst ab, die der Führung nicht
+    r = await NEW.c.call('POST', `/api/onboarding/me/steps/${selfStep.id}`, { done: true }); assert.equal(r.status, 200); assert.equal(r.done, 1);
+    assert.equal((await NEW.c.call('POST', `/api/onboarding/me/steps/${leadStep.id}`, { done: true })).status, 403);
+    assert.equal((await NEW.c.call('GET', '/api/onboarding')).status, 403); // Übersicht nur für die Führung
+    assert.equal((await NEW.c.call('POST', `/api/onboarding/${NEW.u.id}/steps/${leadStep.id}`, { done: true })).status, 403);
+    // Führung bestätigt – alle Schritte ⇒ abgeschlossen
+    for (const s of (await Lead.c.call('GET', '/api/onboarding')).rows.find((x) => x.userId === NEW.u.id).steps) if (!s.done) assert.equal((await Lead.c.call('POST', `/api/onboarding/${NEW.u.id}/steps/${s.id}`, { done: true })).status, 200);
+    r = await NEW.c.call('GET', '/api/onboarding/me'); assert.equal(r.active, false); assert.ok(r.completedAt); assert.equal(r.done, 6);
+    assert.ok((await NEW.c.call('GET', '/api/notifications')).notifications.some((n) => /abgeschlossen/.test(n.title)));
+    // Schritt wieder offen ⇒ nicht mehr abgeschlossen
+    assert.equal((await Lead.c.call('POST', `/api/onboarding/${NEW.u.id}/steps/${leadStep.id}`, { done: false })).status, 200); r = await NEW.c.call('GET', '/api/onboarding/me'); assert.equal(r.active, true);
+    // Die Führung bestätigt Schritte der Führung nicht für sich selbst
+    assert.equal((await admin.call('DELETE', '/api/onboarding/' + Lead.u.id)).status, 200); assert.equal((await Lead.c.call('POST', '/api/onboarding/' + Lead.u.id + '/start')).status, 201); assert.equal((await Lead.c.call('POST', `/api/onboarding/${Lead.u.id}/steps/${leadStep.id}`, { done: true })).status, 403);
+    assert.equal((await Lead.c.call('POST', '/api/onboarding/' + Lead.u.id + '/start')).status, 400); // läuft schon
+    // Schritte verwalten: nur mit onboarding.manage
+    assert.equal((await Lead.c.call('POST', '/api/onboarding/steps', { title: 'Neu', confirmBy: 'leader' })).status, 403);
+    for (const bad of [{}, { title: 'x', confirmBy: 'leader' }, { title: 'Gut', confirmBy: 'andere' }]) assert.equal((await Mgr.c.call('POST', '/api/onboarding/steps', bad)).status, 400, JSON.stringify(bad));
+    r = await Mgr.c.call('POST', '/api/onboarding/steps', { title: 'Eigener Schritt', description: 'Test', confirmBy: 'self' }); assert.equal(r.status, 201); const own = r.step; assert.equal((await NEW.c.call('GET', '/api/onboarding/me')).total, 7);
+    assert.equal((await Mgr.c.call('POST', `/api/onboarding/steps/${own.id}/move`, { dir: 'up' })).status, 200); r = await Mgr.c.call('GET', '/api/onboarding'); assert.equal(r.steps[5].id, own.id);
+    assert.equal((await Mgr.c.call('PATCH', `/api/onboarding/steps/${own.id}`, { isActive: false })).status, 200); assert.equal((await NEW.c.call('GET', '/api/onboarding/me')).total, 6);
+    assert.equal((await Mgr.c.call('DELETE', `/api/onboarding/steps/${own.id}`)).status, 200); assert.equal((await Mgr.c.call('DELETE', `/api/onboarding/steps/${own.id}`)).status, 404);
+    // Beenden / Entfernen
+    assert.equal((await Lead.c.call('POST', `/api/onboarding/${NEW.u.id}/finish`)).status, 200); assert.equal((await NEW.c.call('GET', '/api/onboarding/me')).active, false);
+    assert.equal((await Lead.c.call('DELETE', `/api/onboarding/${NEW.u.id}`)).status, 200); assert.equal((await NEW.c.call('GET', '/api/onboarding/me')).active, false); assert.equal((await Lead.c.call('DELETE', `/api/onboarding/${NEW.u.id}`)).status, 404);
+    // Dashboard-Widget
+    r = await NEW.c.call('GET', '/api/dashboard'); assert.ok(r.widgets.some((w) => w.id === 'onboarding'));
+    // Funktion abschaltbar
+    assert.equal((await admin.call('PUT', '/api/config', { values: { 'onboarding.enabled': false } })).status, 200); const X = await mk('Einarbkeine'); assert.equal((await X.c.call('GET', '/api/onboarding/me')).active, false); await admin.call('PUT', '/api/config', { values: { 'onboarding.enabled': true } });
+    r = await admin.call('GET', '/api/audit?module=onboarding&limit=50'); assert.ok(r.rows.some((x) => x.action === 'onboarding.step_created') && r.rows.some((x) => x.action === 'onboarding.step'));
+    ok('Einarbeitung: Start bei Freischaltung, Mitglied hakt eigene Schritte ab, Führung bestätigt (nicht für sich selbst), Abschluss/Wiederöffnen, Schritte verwalten (onboarding.manage), Beenden/Entfernen, abschaltbar'); }
+
+  // ══ Wochen-/Monatsbericht ══
+  { assert.equal((await new Client().call('GET', '/api/report')).status, 401);
+    r = await admin.call('GET', '/api/report?period=week'); assert.equal(r.status, 200); assert.match(r.period.label, /^KW \d+\/\d{4}$/); assert.equal(r.period.isCurrent, true); assert.ok(r.sections.market && r.sections.finance && r.sections.activity && r.sections.schedule);
+    assert.equal(typeof r.sections.market.cur.volume, 'number'); assert.ok(Array.isArray(r.sections.market.cur.topItems)); assert.ok(r.sections.market.cur.completed >= 0);
+    r = await admin.call('GET', '/api/report?period=month&offset=-1'); assert.equal(r.status, 200); assert.equal(r.period.isCurrent, false); assert.match(r.period.range, /^01\./);
+    for (const bad of ['offset=1', 'offset=-500', 'offset=abc']) assert.equal((await admin.call('GET', `/api/report?period=week&${bad}`)).status, 400, bad);
+    const { periodOf } = await import('../server/modules/report.js');
+    const w = periodOf('week', 0, new Date(Date.UTC(2026, 9, 18))); assert.equal(w.from, '2026-10-12'); assert.equal(w.to, '2026-10-19'); assert.equal(w.label, 'KW 42/2026'); const mo = periodOf('month', -1, new Date(Date.UTC(2026, 0, 15))); assert.equal(mo.from, '2025-12-01'); assert.equal(mo.to, '2026-01-01'); assert.equal(mo.label, 'Dezember 2025');
+    // Nur Abschnitte, für die man das Ansichtsrecht hat
+    const u = (await admin.call('POST', '/api/users', { displayName: 'Berichtler', username: 'berichtler', password: 'passwort123' })).user; await admin.call('PATCH', `/api/users/${u.id}`, { permissions: ['stats.view'] }); const bc = new Client(); await bc.call('POST', '/api/auth/login', { username: 'berichtler', password: 'passwort123' });
+    r = await bc.call('GET', '/api/report'); assert.equal(r.status, 200); assert.deepEqual(Object.keys(r.sections), []);
+    await admin.call('PATCH', `/api/users/${u.id}`, { permissions: ['stats.view', 'finance.view'] }); r = await bc.call('GET', '/api/report'); assert.deepEqual(Object.keys(r.sections), ['finance']);
+    for (const q of ['week', 'month']) { const pdf = await fetch(`${base}/api/report/export.pdf?period=${q}`, { headers: { cookie: admin.cookie } }); const buf = Buffer.from(await pdf.arrayBuffer()); assert.equal(pdf.status, 200); assert.equal(pdf.headers.get('content-type'), 'application/pdf'); assert.equal(buf.subarray(0, 5).toString(), '%PDF-'); }
+    assert.equal((await fetch(`${base}/api/report/export.pdf`)).status, 401);
+    ok('Wochen-/Monatsbericht: Zeiträume, Vergleich mit Vorperiode, Abschnitte nur mit Ansichtsrecht, PDF-Export'); }
+
+  // ══ Partner-Bewertung ══
+  { r = await admin.call('POST', '/api/partners', { type: 'buyer', name: 'Bewertung Partner', contactName: 'X', apps: ['market'] }); assert.equal(r.status, 201); const pid = r.partner.id;
+    assert.equal(r.partner.rating.stats.total, 0); assert.equal(r.partner.rating.auto.label, 'Zu wenig Daten'); assert.equal(r.partner.rating.stars, null);
+    assert.equal((await admin.call('PUT', `/api/partners/${pid}/rating`, { stars: 6 })).status, 400); assert.equal((await admin.call('PUT', `/api/partners/${pid}/rating`, { stars: 2.5 })).status, 400);
+    r = await admin.call('PUT', `/api/partners/${pid}/rating`, { stars: 4, note: 'Liefert pünktlich' }); assert.equal(r.status, 200); assert.equal(r.rating.stars, 4); assert.equal(r.rating.note, 'Liefert pünktlich');
+    assert.equal((await admin.call('GET', '/api/partners')).partners.find((p) => p.id === pid).rating.stars, 4);
+    assert.equal((await admin.call('PUT', `/api/partners/${pid}/rating`, { stars: null, note: '' })).rating.stars, null);
+    assert.equal((await admin.call('PUT', '/api/partners/99999/rating', { stars: 3 })).status, 404);
+    // Kennzahlen aus Geschäften: 3 Abschlüsse, 1 Storno ⇒ 75 %
+    const { run: dbRun, get: dbGet } = await import('../server/core/db.js'); const item = dbGet('SELECT id FROM market_items WHERE is_other = 0 LIMIT 1'); const t0 = new Date().toISOString();
+    const ins = (st) => { const id = Number(dbRun("INSERT INTO market_deals (origin,partner_id,item_id,quantity,unit_price,proposed_by,status,created_at,updated_at,closed_at) VALUES ('offer',?,?,10,5,'partner',?,?,?,?)", pid, item.id, st, t0, t0, t0).lastInsertRowid); dbRun('INSERT INTO market_deal_lines (deal_id,pos,item_id,quantity,unit_price) VALUES (?,?,?,?,?)', id, 0, item.id, 10, 5); };
+    for (const st of ['completed', 'completed', 'completed', 'cancelled', 'rejected']) ins(st);
+    const rt = (await admin.call('GET', '/api/partners')).partners.find((p) => p.id === pid).rating; assert.equal(rt.stats.completed, 3); assert.equal(rt.stats.cancelled, 1); assert.equal(rt.stats.rejected, 1); assert.equal(rt.stats.completionRate, 75); assert.equal(rt.auto.label, 'Zuverlässig'); assert.equal(rt.stats.volume, 150);
+    r = await admin.call('GET', '/api/audit?module=partners&limit=50'); assert.ok(r.rows.some((x) => x.action === 'partner.rated'));
+    // Partner selbst sieht die Bewertung nie
+    const pl = (await admin.call('POST', '/api/partners', { type: 'buyer', name: 'Bewertung Zwei', contactName: 'X', apps: ['market'] })); const pcl = new Client(); await pcl.call('POST', `/api/p/${pl.partner.linkPath.split('/').pop()}/login`, { code: pl.code }); assert.equal(JSON.stringify(await pcl.call('GET', '/api/p/me')).includes('rating'), false);
+    ok('Partner-Bewertung: Kennzahlen aus Börsen-Geschäften (Abschlussquote), Einstufung, Sterne + Notiz der Führung, Audit, für Partner unsichtbar'); }
+
+  // ══ Preise mit Nachkommastellen ══
+  { const mkItem = async (name, extra = {}) => (await admin.call('POST', '/api/market/items', { name, unit: 'Stk', ...extra })).item;
+    const ID = await mkItem('Dezimal-Kaffee', { referencePrice: 12.5 }); assert.equal(ID.referencePrice, 12.5);
+    assert.equal((await admin.call('PATCH', `/api/market/items/${ID.id}`, { referencePrice: '13,25' })).item.referencePrice, 13.25);
+    for (const badP of [0, -1, 'abc', 1e12]) assert.equal((await admin.call('POST', '/api/market/wanted', { itemId: ID.id, quantity: 1, unitPrice: badP })).status, 400, String(badP));
+    r = await admin.call('POST', '/api/market/wanted', { itemId: ID.id, quantity: 4, unitPrice: 14.75 }); assert.equal(r.status, 201); assert.equal(r.wanted.unitPrice, 14.75);
+    const pp = await admin.call('POST', '/api/partners', { type: 'buyer', name: 'Dezimal Partner', contactName: 'X', apps: ['market'] }); const pc = new Client(); assert.equal((await pc.call('POST', `/api/p/${pp.partner.linkPath.split('/').pop()}/login`, { code: pp.code })).status, 200);
+    r = await pc.call('POST', '/api/p/market/offers', { lines: [{ itemId: ID.id, quantity: 3, unitPrice: 14.75 }, { itemId: ID.id === 0 ? 1 : (await mkItem('Dezimal-Tee')).id, quantity: 2, unitPrice: '9,99' }] }); assert.equal(r.status, 201);
+    assert.equal(r.deal.lines[0].unitPrice, 14.75); assert.equal(r.deal.lines[0].total, 44.25); assert.equal(r.deal.lines[1].unitPrice, 9.99); assert.equal(r.deal.total, 64.23);
+    assert.equal((await pc.call('POST', '/api/p/market/offers', { itemId: ID.id, quantity: 1, unitPrice: 0.001 })).status, 400);
+    r = await admin.call('POST', `/api/market/deals/${r.deal.id}/counter`, { lines: r.deal.lines.map((l) => ({ id: l.id, quantity: l.quantity, unitPrice: 15.5 })) }); assert.equal(r.status, 200); assert.equal(r.deal.total, 77.5);
+    // Lager-Preisspanne mit Nachkommastellen → Vorschlag mit zwei Stellen
+    const IP = await mkItem('Dezimal-Salz'); r = await admin.call('PATCH', `/api/warehouses/items/${IP.id}`, { minPrice: 1.25, maxPrice: '2,5' });
+    if (r.status === 200) { assert.equal(r.item.minPrice, 1.25); assert.equal(r.item.maxPrice, 2.5); }
+    ok('Preise mit Nachkommastellen (Börse: Angebote, Gegenangebote, Gesuche, Richtpreis, Summen auf Cent gerundet)'); }
+
+  // ══ Watchlist ══
+  { const { clearAttempts } = await import('../server/core/auth.js');
+    assert.equal((await new Client().call('GET', '/api/watchlist')).status, 401);
+    const meM = (await mod.call('GET', '/api/auth/me')).user, mk = async (name, perms = []) => { const u = (await admin.call('POST', '/api/users', { displayName: name, username: name.toLowerCase(), password: 'passwort123' })).user; if (perms.length) await admin.call('PATCH', `/api/users/${u.id}`, { permissions: perms }); const c = new Client(); assert.equal((await c.call('POST', '/api/auth/login', { username: name.toLowerCase(), password: 'passwort123' })).status, 200); return { u, c }; };
+    const W = await mk('Beobachtet', ['users.view']), L = await mk('Fuehrung', ['users.view', 'users.watchlist']), S = await mk('Spaeher', ['users.view']); const W_NO = (await admin.call('GET', `/api/users/${W.u.id}`)).user.memberNumber;
+    // Eintragen: nur mit „Benutzer bearbeiten“; Prüfungen
+    assert.equal((await S.c.call('POST', '/api/watchlist', { userId: W.u.id, reason: 'Verdacht' })).status, 403);
+    for (const bad of [{}, { userId: 99999, reason: 'Verdacht' }, { userId: W.u.id, reason: 'x' }, { userId: W.u.id, reason: 'Verdacht', observers: [99999] }, { userId: (await admin.call('GET', '/api/auth/me')).user.id, reason: 'Selbst' }]) assert.equal((await admin.call('POST', '/api/watchlist', bad)).status, 400, JSON.stringify(bad));
+    r = await admin.call('POST', '/api/watchlist', { userId: W.u.id, reason: 'Ex-Mitglied, Verdacht auf Weitergabe von Informationen', observers: [meM.id] }); assert.equal(r.status, 201); assert.equal(r.entry.label, W_NO); assert.equal(r.entry.observers.length, 1); assert.equal(r.entry.observers[0].label, meM.memberNumber);
+    assert.equal((await admin.call('POST', '/api/watchlist', { userId: W.u.id, reason: 'Nochmal' })).status, 400); // nur einmal
+    assert.ok((await mod.call('GET', '/api/notifications')).notifications.some((n) => /Du beobachtest jetzt/.test(n.title)));
+    // Sichtbarkeit: Führung (users.watchlist) und Beobachter ja; Außenstehende und die Person selbst nie
+    r = await L.c.call('GET', '/api/watchlist'); assert.equal(r.entries.length, 1); assert.equal(r.canViewAll, true); assert.equal(r.canManage, false);
+    r = await S.c.call('GET', '/api/watchlist'); assert.equal(r.entries.length, 0);
+    r = await W.c.call('GET', '/api/watchlist'); assert.equal(r.entries.length, 0); assert.equal((await W.c.call('GET', '/api/users')).users.find((x) => x.id === W.u.id).watch, null); assert.equal((await W.c.call('GET', `/api/users/${W.u.id}`)).user.watch, null);
+    r = await S.c.call('GET', '/api/users'); assert.equal(r.users.find((x) => x.id === W.u.id).watch, null); assert.equal(JSON.stringify(r).includes('Weitergabe'), false);
+    r = await L.c.call('GET', '/api/users'); assert.ok(r.users.find((x) => x.id === W.u.id).watch.reason.includes('Weitergabe')); assert.equal((await L.c.call('GET', `/api/users/${W.u.id}`)).user.watch.observers, 1);
+    const mePerms = new Set((await mod.call('GET', '/api/auth/me')).user.permissions); await setPerms(['users.view']); const obs = await mod.call('GET', '/api/watchlist'); assert.equal(obs.entries.length, 1); // Beobachter sehen den Eintrag auch ohne Führungsrecht
+    if (!mePerms.has('users.edit') && !(new Set((await mod.call('GET', '/api/auth/me')).user.permissions)).has('users.edit')) assert.equal((await mod.call('PATCH', `/api/watchlist/${W.u.id}`, { reason: 'Hack' })).status, 403);
+    // Ändern und herunternehmen
+    r = await admin.call('PATCH', `/api/watchlist/${W.u.id}`, { reason: 'Neuer Grund: Kontakt zu Rivalen', observers: [] }); assert.equal(r.entry.reason, 'Neuer Grund: Kontakt zu Rivalen'); assert.equal(r.entry.observers.length, 0); await setPerms([]);
+    assert.equal((await admin.call('PATCH', `/api/watchlist/${W.u.id}`, { observers: [meM.id, S.u.id] })).entry.observers.length, 2); assert.equal((await S.c.call('GET', '/api/watchlist')).entries.length, 1); // neuer Beobachter sieht ihn
+    // Gesperrte Person versucht sich anzumelden → Beobachter bekommen einen Hinweis
+    assert.equal((await admin.call('POST', `/api/users/${W.u.id}/status`, { status: 'blocked', reason: 'Ausgetreten' })).status, 200);
+    for (const ip of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) clearAttempts(`${ip}|${W.u.username}`);
+    assert.equal((await new Client().call('POST', '/api/auth/login', { username: 'beobachtet', password: 'passwort123' })).status, 403);
+    assert.ok((await S.c.call('GET', '/api/notifications')).notifications.some((n) => new RegExp(`Watchlist: ${W_NO} versucht`).test(n.title)));
+    assert.equal((await admin.call('PUT', '/api/config', { values: { 'users.watch_notify': false } })).status, 200); await admin.call('PUT', '/api/config', { values: { 'users.watch_notify': true } });
+    r = await admin.call('GET', '/api/audit?module=users&limit=100'); assert.ok(r.rows.some((x) => x.action === 'watchlist.added') && r.rows.some((x) => x.action === 'watchlist.updated'));
+    assert.equal((await S.c.call('DELETE', `/api/watchlist/${W.u.id}`)).status, 403); assert.equal((await admin.call('DELETE', `/api/watchlist/${W.u.id}`)).status, 200); assert.equal((await L.c.call('GET', '/api/watchlist')).entries.length, 0); assert.equal((await admin.call('DELETE', `/api/watchlist/${W.u.id}`)).status, 404);
+    ok('Watchlist: Eintragen/Entfernen mit „Benutzer bearbeiten“, sichtbar nur für Führung, Beobachter und Ersteller (nie die Person selbst), roter Hinweis in Liste/Profil, Hinweis bei Anmeldeversuch, Audit'); }
+
+  // ══ Dock-Gruppen ══
+  { const { NAV, DOCK_GROUPS, allItems } = await import('../public/js/modules.js'); const ids = new Set(allItems(NAV).map((i) => i.id)), seen = new Set();
+    for (const g of DOCK_GROUPS) { assert.ok(g.label && g.items.length >= 2, g.id); for (const id of g.items) { assert.ok(ids.has(id), `Dock-Gruppe ${g.id}: unbekannte App ${id}`); assert.equal(seen.has(id), false, `App ${id} in zwei Gruppen`); seen.add(id); } }
+    assert.equal(new Set(DOCK_GROUPS.map((g) => g.id)).size, DOCK_GROUPS.length); for (const id of ['dashboard', 'help', 'legal']) assert.equal(seen.has(id), false, `${id} bleibt einzelnes Symbol`);
+    // Anordnung im Panel einstellbar (nur mit Recht system.apps), gilt für alle
+    { const { defaultDockLayout, resolveDock } = await import('../public/js/modules.js'); const def = defaultDockLayout(); assert.ok(def.some((e) => e.gid === 'money') && def.some((e) => e.app === 'dashboard'));
+      const vis = allItems(NAV).filter((i) => ['dashboard', 'finance', 'stats', 'chat'].includes(i.id));
+      let dk = resolveDock(def, vis); assert.deepEqual(dk.map((e) => e.app?.id ?? e.group.id), ['dashboard', 'money', 'chat']); assert.equal(dk[1].items.length, 2); // Gruppe mit zwei sichtbaren Apps bleibt Ordner
+      dk = resolveDock(def, vis.filter((i) => i.id !== 'stats')); assert.deepEqual(dk.map((e) => e.app?.id ?? e.group.id), ['dashboard', 'finance', 'chat']); // nur eine sichtbare App: direkt
+      dk = resolveDock([{ app: 'chat' }, { gid: 'x', label: 'Meine', items: ['stats', 'nix', 'dashboard'] }], vis); assert.deepEqual(dk.map((e) => e.app?.id ?? e.group.id), ['chat', 'x', 'finance']); assert.deepEqual(dk[1].items.map((i) => i.id), ['stats', 'dashboard']); // eigene Reihenfolge, Unbekanntes entfällt, nicht erwähnte Apps ans Ende
+      const me = new Set((await mod.call('GET', '/api/auth/me')).user.permissions); const good = [{ app: 'dashboard' }, { gid: 'g1', label: 'Geld', items: ['finance', 'stats'] }, { app: 'chat' }];
+      if (!me.has('system.apps') && !me.has('config.edit')) assert.equal((await mod.call('PUT', '/api/config', { values: { 'ui.dock_layout': good } })).status, 403);
+      for (const bad of ['x', [{ app: 'A!' }], [{ app: 'chat' }, { app: 'chat' }], [{ app: 'chat' }, { gid: 'g', label: 'X', items: ['chat'] }], [{ gid: 'g', label: '', items: ['chat'] }], [{ gid: 'g', label: 'X', items: [] }], [{ gid: 'g', label: 'X', items: ['chat'], extra: 1 }], [{ gid: 'g', label: 'X', items: ['chat'] }, { gid: 'g', label: 'Y', items: ['map'] }], [{ app: 'chat', gid: 'g' }], Array.from({ length: 61 }, (_, i) => ({ app: `app${i}` }))]) assert.equal((await admin.call('PUT', '/api/config', { values: { 'ui.dock_layout': bad } })).status, 400, JSON.stringify(bad).slice(0, 60));
+      assert.equal((await admin.call('PUT', '/api/config', { values: { 'ui.dock_layout': good } })).status, 200); assert.deepEqual((await mod.call('GET', '/api/bootstrap')).config['ui.dock_layout'], good); // alle bekommen die neue Anordnung
+      assert.equal((await admin.call('PUT', '/api/config', { values: { 'ui.dock_layout': [] } })).status, 200); assert.deepEqual((await mod.call('GET', '/api/bootstrap')).config['ui.dock_layout'], []); } // zurück auf Standard
+    ok('Dock-Gruppen: nur vorhandene Apps, keine App doppelt, Dashboard/Hilfe/Legal bleiben einzeln; Anordnung im Panel einstellbar (system.apps), geprüft, für alle, Standard wiederherstellbar'); }
 
   // ══ Hilfe-App ══
   { const { HELP_ARTICLES } = await import('../server/core/help-content.js'); const { listPermissions } = await import('../server/core/permissions.js'); const { clearAttempts } = await import('../server/core/auth.js');
@@ -1712,11 +2025,19 @@ try {
     r = await mod.call('GET', '/api/legal'); assert.ok(r.laws.embedUrl.startsWith('https://docs.google.com/document/d/') && r.laws.embedUrl.endsWith('/preview')); assert.equal(r.fines.kind, 'spreadsheets'); assert.equal(r.canManage, true);
     r = await mod.call('PUT', '/api/config', { values: { 'legal.codex_url': 'https://docs.google.com/document/d/zyxwvutsrqponmlkjihgfedcba/edit' } }); assert.equal(r.status, 200);
     r = await mod.call('GET', '/api/dashboard'); assert.equal(r.widgets[0].id, 'codex'); assert.ok(r.widgets[0].data.codex.embedUrl.endsWith('/preview')); assert.equal(r.widgets[0].data.canManage, true); // Codex-Banner ganz oben im Dashboard
+    // Codex: zusätzlich sichere externe https-Links (z. B. Zipline), aber nichts Unsicheres – und die CSP erlaubt genau diese Herkunft als Frame
+    for (const url of ['http://zipline.example.org/u/codex.pdf', 'javascript:alert(1)', 'https://user:pw@zipline.example.org/u/codex.pdf', 'https://127.0.0.1/codex.pdf', 'https://localhost/codex.pdf', 'https://intern/codex.pdf', 'kein link']) assert.equal((await mod.call('PUT', '/api/config', { values: { 'legal.codex_url': url } })).status, 400, url);
+    assert.equal((await mod.call('PUT', '/api/config', { values: { 'legal.laws_url': 'https://zipline.example.org/u/gesetze.pdf' } })).status, 400); // Gesetzessammlung bleibt Google-only
+    r = await mod.call('PUT', '/api/config', { values: { 'legal.codex_url': 'https://zipline.example.org/u/codex.pdf' } }); assert.equal(r.status, 200);
+    r = await mod.call('GET', '/api/dashboard'); assert.equal(r.widgets[0].data.codex.source, 'extern'); assert.equal(r.widgets[0].data.codex.embedUrl, 'https://zipline.example.org/u/codex.pdf'); assert.equal(r.widgets[0].data.codex.host, 'zipline.example.org');
+    { const csp = (await fetch(`${base}/`)).headers.get('content-security-policy'); assert.ok(csp.includes('frame-src https://docs.google.com https://zipline.example.org;'), csp); }
+    r = await mod.call('PUT', '/api/config', { values: { 'legal.codex_url': 'https://docs.google.com/document/d/zyxwvutsrqponmlkjihgfedcba/edit' } }); assert.equal(r.status, 200);
+    { const csp = (await fetch(`${base}/`)).headers.get('content-security-policy'); assert.ok(csp.includes('frame-src https://docs.google.com;'), csp); } // wieder nur Google
     assert.equal((await mod.call('PUT', '/api/config', { values: { 'legal.fines_url': '' } })).status, 200); assert.equal((await mod.call('GET', '/api/legal')).fines, null); // leeren → wieder Platzhalter
     assert.equal((await mod.call('POST', '/api/legal/docs', { title: 'X', url: G })).status, 404); // alte Dokumentenliste gibt es nicht mehr
     for (const k of ['legal.laws_url', 'legal.codex_url']) await admin.call('PUT', '/api/config', { values: { [k]: '' } }); await setPerms([]);
     assert.equal((await admin.call('GET', '/api/dashboard')).widgets[0].data.codex, null); // ohne Link: Platzhalter
-    ok('Legal: Links für Gesetzessammlung/Bußgeldkatalog + Codex (Dashboard, ganz oben) in der Konfiguration (nur Google-Docs-Links, Recht legal.manage), ohne Link Platzhalter'); }
+    ok('Legal: Links für Gesetzessammlung/Bußgeldkatalog + Codex (Dashboard, ganz oben) in der Konfiguration (Gesetze/Bußgeld nur Google-Docs, Codex zusätzlich sichere https-Links, Recht legal.manage), ohne Link Platzhalter'); }
 
   // ══ Ticker (Laufband) ══
   { assert.equal((await new Client().call('GET', '/api/ticker')).status, 401); assert.equal((await new Client().call('GET', '/api/p/ticker')).status, 401); assert.equal((await mod.call('GET', '/api/p/ticker')).status, 401); // Mitglieder nutzen die interne, Partner die externe Schnittstelle

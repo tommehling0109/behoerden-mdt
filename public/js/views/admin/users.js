@@ -40,30 +40,81 @@ export default async function render(container, ctx) {
   const search = h('input', { class: 'input', placeholder: 'Benutzer suchen …', 'aria-label': 'Suche' });
   mount(container, h('div', { class: 'toolbar' }, tabsHost, h('div', { class: 'grow' }), h('div', { class: 'input-icon' }, icon('search'), search)), listHost);
 
-  if (can('users.create')) ctx.setActions(button('Benutzer anlegen', { variant: 'primary', icon: 'userPlus', onClick: () => editor(null) }));
+  const actions = () => h('div', { class: 'row' }, can('users.edit') && button('Person auf die Watchlist', { icon: 'eye', variant: 'danger', onClick: () => watchDialog() }), can('users.create') && button('Benutzer anlegen', { variant: 'primary', icon: 'userPlus', onClick: () => editor(null) }));
+  if (can('users.create') || can('users.edit')) ctx.setActions(actions());
 
+  let watch = { entries: [], canManage: false };
   async function load(silent = false) {
     if (!silent) mount(listHost, skeletons(5, 56));
     const p = new URLSearchParams();
     if (f.status !== 'all') p.set('status', f.status);
     if (f.q) p.set('q', f.q);
-    const [{ users }, { counts }] = await Promise.all([api.get('/api/users?' + p), api.get('/api/users')]);
+    const [{ users }, { counts }, wl] = await Promise.all([api.get('/api/users?' + p), api.get('/api/users'), api.get('/api/watchlist').catch(() => ({ entries: [], canManage: false }))]);
+    watch = wl;
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
     mount(tabsHost, tabs([
       { id: 'all', label: 'Alle', count: total }, { id: 'pending', label: 'Ausstehend', count: counts.pending ?? 0 },
       { id: 'active', label: 'Aktiv', count: counts.active ?? 0 }, { id: 'blocked', label: 'Gesperrt', count: counts.blocked ?? 0 },
       { id: 'rejected', label: 'Abgelehnt', count: counts.rejected ?? 0 },
+      ...(wl.entries.length || wl.canManage ? [{ id: 'watch', label: 'Watchlist', count: wl.entries.length || undefined }] : []),
     ], f.status, (id) => { f.status = id; load(); }));
     ctx.refreshCounters?.();
+    if (f.status === 'watch') return watchView();
     mount(listHost, table([
       { label: 'Nr.', style: { width: '1%' }, render: (u) => memberNo(u.memberNumber) },
-      { label: 'Benutzer', render: (u) => h('div', { class: 'cell-user' }, userAvatar(u), h('div', null, h('div', { class: 'nm' }, u.displayName, u.isSuperadmin && h('span', { class: 'badge no-dot b-warn', style: { marginLeft: '6px' } }, 'Superadmin')), h('div', { class: 'sub' }, u.username ? '@' + u.username : (u.isSelf ? 'Du' : 'Name geschützt')))) },
+      { label: 'Benutzer', render: (u) => h('div', { class: 'cell-user' }, userAvatar(u), h('div', null, h('div', { class: 'nm' }, u.displayName, u.watch && h('span', { class: 'badge no-dot b-err', style: { marginLeft: '6px' }, title: `Watchlist: ${u.watch.reason}` }, 'Watchlist'), u.isSuperadmin && h('span', { class: 'badge no-dot b-warn', style: { marginLeft: '6px' } }, 'Superadmin')), h('div', { class: 'sub' }, u.username ? '@' + u.username : (u.isSelf ? 'Du' : 'Name geschützt')))) },
       { label: 'Rang / Abteilung', render: (u) => (u.rank || u.department ? h('div', { class: 'chips' }, rankBadge(u.rank), deptBadge(u.department)) : h('span', { class: 'muted' }, '–')) },
       { label: 'Status', render: (u) => statusBadge(u.status) },
       { label: 'Rollen', render: (u) => (u.roles.length ? h('div', { class: 'chips' }, u.roles.map(roleChip)) : h('span', { class: 'muted' }, '–')) },
       { label: 'Letzte Anmeldung', render: (u) => h('span', { class: 'muted', title: fmtDateTime(u.lastLoginAt) }, u.lastLoginAt ? timeAgo(u.lastLoginAt) : 'nie') },
       { label: '', style: { width: '1%' }, render: (u) => h('div', { class: 'actions' }, rowActions(u)) },
     ], users, { onRowClick: (u) => editor(u.id), empty: empty('Keine Benutzer gefunden', 'Passe Filter oder Suche an.', 'users') }));
+  }
+
+  // ── Watchlist ──
+  function watchView() {
+    const rows = watch.entries;
+    mount(listHost,
+      h('div', { class: 'watch-alert', style: { marginBottom: 0 } }, icon('alert'), h('div', null, 'Beobachtete Personen – vertraulich. Sichtbar nur für die Führung, die beauftragten Beobachter und wer den Eintrag angelegt hat; die Person selbst sieht nichts davon. Beobachter erfahren, wenn die Person sich anmeldet oder (gesperrt) es versucht.')),
+      h('div', { style: { height: '12px' } }),
+      table([
+        { label: 'Nr.', style: { width: '1%' }, render: (e) => h('span', { class: 'member-no watch-no' }, e.memberNumber ?? e.label) },
+        { label: 'Status', render: (e) => (e.status ? statusBadge(e.status) : h('span', { class: 'muted' }, '–')) },
+        { label: 'Rang', render: (e) => (e.rank ? rankBadge(e.rank) : h('span', { class: 'muted' }, '–')) },
+        { label: 'Grund', render: (e) => h('div', { class: 'watch-reason' }, e.reason) },
+        { label: 'Beobachter', render: (e) => (e.observers.length ? h('div', { class: 'chips' }, e.observers.map((o) => h('span', { class: 'badge no-dot' }, o.label))) : h('span', { class: 'muted' }, 'nur Führung')) },
+        { label: 'Eingetragen', render: (e) => h('div', null, h('span', { class: 'muted', title: fmtDateTime(e.addedAt) }, timeAgo(e.addedAt)), e.addedBy && h('div', { class: 'muted', style: { fontSize: '12px' } }, e.addedBy)) },
+        { label: '', style: { width: '1%' }, render: (e) => (e.canEdit ? h('div', { class: 'actions' }, button('Bearbeiten', { size: 'sm', icon: 'edit', onClick: (ev) => { ev.stopPropagation(); watchDialog({ edit: e.userId }); } }), button('Entfernen', { size: 'sm', variant: 'ghost', icon: 'trash', onClick: (ev) => { ev.stopPropagation(); removeWatch(e); } })) : null) },
+      ], rows, { onRowClick: (e) => editor(e.userId), empty: empty('Niemand auf der Watchlist', watch.canManage ? 'Setze Personen über „Person auf die Watchlist“ oder im Profil auf die Liste.' : 'Für dich ist kein Eintrag sichtbar.', 'eye') }));
+  }
+  async function removeWatch(e) {
+    if (!await confirmDialog({ title: 'Von der Watchlist nehmen?', message: `${e.label} wird nicht mehr beobachtet. Der Eintrag samt Grund wird gelöscht (das Audit-Log behält die Aktion).`, confirmLabel: 'Entfernen' })) return;
+    try { await api.del(`/api/watchlist/${e.userId}`); toast('Von der Watchlist genommen.'); load(true); } catch (ex) { toast(ex.message, 'err'); }
+  }
+  /** Person auf die Watchlist setzen (userId bekannt oder aus der Liste wählen) bzw. einen Eintrag bearbeiten (edit). */
+  async function watchDialog({ userId = null, edit = null } = {}) {
+    let opts, cur = edit ? watch.entries.find((x) => x.userId === edit) : null;
+    try { opts = await api.get('/api/watchlist/options'); } catch (e) { return toast(e.message, 'err'); }
+    if (edit && !cur) { try { cur = (await api.get('/api/watchlist')).entries.find((x) => x.userId === edit); } catch { /* egal */ } }
+    const err = h('div'), q = input({ type: 'search', placeholder: 'Personalnummer suchen …' });
+    const pick = select([{ value: '', label: '— Person wählen —' }, ...opts.candidates.map((c) => ({ value: c.id, label: `${c.label} (${{ active: 'aktiv', blocked: 'gesperrt', pending: 'ausstehend', rejected: 'abgelehnt' }[c.status] ?? c.status})` }))], userId ?? '');
+    q.addEventListener('input', () => { const f = q.value.trim().toLowerCase(); for (const o of pick.options) o.hidden = !!f && !!o.value && !o.textContent.toLowerCase().includes(f); });
+    const reason = h('textarea', { class: 'textarea', rows: 4, maxLength: 600, placeholder: 'Warum wird die Person beobachtet? (z. B. Ex-Mitglied, Verdacht auf Weitergabe von Informationen …)' }, cur?.reason ?? '');
+    const sel = new Set((cur?.observers ?? []).map((o) => o.id)), box = h('div', { class: 'sch-pick' });
+    const drawObs = () => mount(box, opts.members.filter((mm) => mm.id !== Number(pick.value)).map((mm) => { const cb = checkbox(mm.label, sel.has(mm.id)); cb.input.addEventListener('change', () => { cb.input.checked ? sel.add(mm.id) : sel.delete(mm.id); }); return cb; }));
+    pick.addEventListener('change', drawObs); drawObs();
+    const save = button(edit ? 'Speichern' : 'Auf die Watchlist setzen', { variant: 'danger', icon: 'check', onClick: () => busy(save, async () => {
+      err.replaceChildren();
+      try {
+        if (edit) await api.patch(`/api/watchlist/${edit}`, { reason: reason.value, observers: [...sel] });
+        else { if (!pick.value) throw new Error('Bitte eine Person auswählen.'); await api.post('/api/watchlist', { userId: Number(pick.value), reason: reason.value, observers: [...sel] }); }
+        m.close(); toast(edit ? 'Watchlist-Eintrag gespeichert.' : 'Auf die Watchlist gesetzt.'); load(true);
+      } catch (ex) { err.replaceChildren(formError(ex.message)); }
+    }) });
+    const m = openModal({ title: edit ? `Watchlist: ${cur?.label ?? ''}` : 'Person auf die Watchlist setzen', wide: true,
+      body: h('div', { class: 'stack' }, err, note('Beobachtete Personen sind nur für die Führung, die gewählten Beobachter und dich sichtbar – die Person selbst erfährt nichts davon.', 'alert'),
+        !edit && !userId && field('Person', h('div', null, q, pick)), !edit && userId && field('Person', pick), field('Grund *', reason), field('Beauftragte Beobachter', box, { help: 'Diese Mitglieder sehen den Eintrag und bekommen Hinweise, wenn die Person sich anmeldet. Die Führung sieht ihn immer.' })),
+      footer: [button('Abbrechen', { onClick: () => m.close() }), save] });
   }
 
   function rowActions(u) {
@@ -149,6 +200,9 @@ export default async function render(container, ctx) {
     const extras = personNew ? extraFilesPicker() : null;
     const docPickers = personNew ? Object.fromEntries(PERS_DOCS.map(([k, label]) => [k, filePicker(`${label.replace(' (optional)', '')} hochladen`)])) : null;
     const general = h('div', null, err,
+      user?.watch && h('div', { class: 'watch-alert' }, icon('alert'), h('div', { class: 'grow' }, h('div', { class: 'wa-title' }, 'Auf der Watchlist – wird gesondert beobachtet'), h('div', { class: 'wa-text' }, user.watch.reason), h('div', { class: 'wa-sub' }, `${user.watch.observers} beauftragte(r) Beobachter · vertraulich, die Person selbst sieht das nicht`)),
+        user.watch.canEdit && button('Bearbeiten', { size: 'sm', onClick: () => { m.close(); watchDialog({ edit: user.id }); } })),
+      user && !user.watch && !user.isSelf && can('users.edit') && h('div', { class: 'row', style: { margin: '0 0 12px' } }, button('Auf die Watchlist setzen', { size: 'sm', variant: 'danger', icon: 'eye', onClick: () => { m.close(); watchDialog({ userId: user.id }); } })),
       user && h('div', { class: 'member-card' }, userAvatar(user, 'lg'),
         h('div', { class: 'grow' }, h('div', { class: 'mc-name' }, user.displayName), h('div', { class: 'mc-sub' }, user.username ? `@${user.username}` : (user.memberNumber ? 'Personalnummer' : '')),
           h('div', { class: 'mc-meta' }, statusBadge(user.status), rankBadge(user.rank), deptBadge(user.department))),
