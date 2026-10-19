@@ -50,11 +50,12 @@ import extrafilesModule from './modules/extrafiles.js';
 import levelsModule from './modules/levels.js';
 import problemsModule from './modules/problems.js';
 import presenceModule from './modules/presence.js';
-import legalcasesModule from './modules/legalcases.js';
+import citizensModule from './modules/citizens.js';
+import casefilesModule from './modules/casefiles.js';
 import contactsModule from './modules/contacts.js';
 
 /** Modulliste – spätere Phasen hängen hier weitere Module an (vehicles, storage, purchasing, chat, …). */
-const MODULES = [systemModule, authModule, usersModule, rolesModule, orgModule, auditModule, dashboardModule, lookupsModule, chatModule, vehiclesModule, mapModule, warehouseModule, financeModule, profileModule, statsModule, personnelModule, ticketsModule, boardModule, changelogModule, legalModule, legalcasesModule, extrafilesModule, problemsModule, presenceModule, contactsModule, helpModule, scheduleModule, watchlistModule, activityModule, onboardingModule, reportModule, realtimeModule];
+const MODULES = [systemModule, authModule, usersModule, rolesModule, orgModule, auditModule, dashboardModule, lookupsModule, chatModule, vehiclesModule, mapModule, warehouseModule, financeModule, profileModule, statsModule, personnelModule, ticketsModule, boardModule, changelogModule, legalModule, citizensModule, casefilesModule, extrafilesModule, problemsModule, presenceModule, contactsModule, helpModule, scheduleModule, watchlistModule, activityModule, onboardingModule, reportModule, realtimeModule];
 
 /** Hinter nginx o. ä.: TRUST_PROXY=1 ⇒ Client-IP und Protokoll aus X-Forwarded-* übernehmen (sonst ignorieren – nicht fälschbar). */
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';

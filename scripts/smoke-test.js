@@ -197,6 +197,58 @@ try {
   r = await admin.call('GET', '/api/chat/people'); assert.ok(r.people.some((x) => x.label === 'Erika Musterfrau (LSPD-4711)'), JSON.stringify(r.people)); ok('Chat-Kontakte: „Name (Dienstnummer)“');
   r = await pf.call('GET', '/api/presence'); assert.equal(r.status, 200); ok('Online-Liste erreichbar');
 
+
+  // ══ Bürgerregister + Akten ══
+  const roleNow = (await admin.call('GET', '/api/roles')).roles.find((x) => x.id === officerRole.id);
+  const addPerms = async (...keys) => { const cur = (await admin.call('GET', '/api/roles')).roles.find((x) => x.id === officerRole.id).permissions; await admin.call('PATCH', `/api/roles/${officerRole.id}`, { permissions: [...new Set([...cur, ...keys])] }); };
+  await addPerms('citizens.view', 'citizens.create', 'citizens.edit', 'citizens.vehicles', 'citizens.licenses', 'citizens.wanted', 'cases.view', 'cases.create', 'cases.edit');
+  assert.equal((await pf2.call('GET', '/api/citizens')).status, 403); ok('Bürgerregister ohne Recht gesperrt');
+  r = await pf.call('POST', '/api/citizens', { lastName: 'Mustermann', firstName: 'Max', birthDate: '1990-05-17', phone: '555-0101', email: 'max@example.com', street: 'Vinewood Blvd 12', postal: '90210', city: 'Los Santos', occupation: 'Mechaniker' });
+  assert.equal(r.status, 201, JSON.stringify(r)); const max = r.citizen; assert.match(max.number, /^SA-\d{6}$/); ok('Bürger anlegen (automatische Bürgernummer)');
+  assert.equal((await pf.call('POST', '/api/citizens', { lastName: 'mustermann', firstName: 'max', birthDate: '1990-05-17' })).status, 409); assert.equal((await pf.call('POST', '/api/citizens', { lastName: 'X', firstName: 'Y', birthDate: '17.05.1990' })).status, 400); ok('Doppelte Bürger und ungültige Daten werden abgelehnt');
+  r = await pf.call('POST', `/api/citizens/${max.id}/vehicles`, { plate: 'ls 4711', makeModel: 'Karin Sultan', color: 'Schwarz' }); assert.equal(r.status, 201, JSON.stringify(r)); assert.equal(r.citizen.vehicles[0].plate, 'LS 4711');
+  assert.equal((await pf.call('POST', `/api/citizens/${max.id}/vehicles`, { plate: 'LS 4711', makeModel: 'Doppelt' })).status, 409); ok('Fahrzeug zulassen (Kennzeichen eindeutig)');
+  assert.equal((await pf.call('POST', `/api/citizens/${max.id}/licenses`, { kind: 'Führerschein Klasse B', status: 'valid', validUntil: '2030-01-01' })).status, 201); ok('Führerschein/Lizenz eintragen');
+  assert.equal((await pf.call('GET', '/api/citizens?q=4711')).citizens[0].id, max.id); assert.equal((await pf.call('GET', '/api/citizens?q=Musterm')).citizens.length, 1); assert.equal((await pf.call('GET', '/api/citizens?q=555-0101')).citizens.length, 1); ok('Suche nach Name, Telefon und Kennzeichen');
+  assert.equal((await pf.call('GET', '/api/citizens/plate/ls 4711')).vehicle.owner.id, max.id); ok('Kennzeichen-Abfrage liefert den Halter');
+  r = await pf.call('POST', `/api/citizens/${max.id}/wanted`, { wanted: true, reason: 'Verdacht auf Raub' }); assert.equal(r.citizen.isWanted, true); assert.equal((await pf.call('GET', '/api/citizens?wanted=1')).citizens.length, 1); ok('Fahndung ausschreiben');
+
+  // Akten
+  assert.equal((await pf2.call('GET', '/api/cases')).status, 403); ok('Akten ohne Recht gesperrt');
+  const cat = (await pf.call('GET', '/api/cases/options')).catalog; assert.ok(cat.length > 15); const raub = cat.find((x) => x.title === 'Raub');
+  r = await pf.call('POST', '/api/cases', { type: 'criminal', title: 'Raubüberfall Tankstelle', incidentAt: '2026-10-18T22:15:00', location: 'Tankstelle Grove Street', summary: 'Bewaffneter Überfall.', narrative: 'Täter betrat gegen 22:15 Uhr den Verkaufsraum …', persons: [{ citizenId: max.id, role: 'suspect' }, { nameText: 'Anna Zeugin', role: 'witness' }], vehicles: [{ plate: 'LS 4711', role: 'used' }] });
+  assert.equal(r.status, 201, JSON.stringify(r)); const akte = r.case; assert.match(akte.number, /^ST-\d{4}-0001$/); assert.equal(akte.department.id, lspdDept); assert.equal(akte.persons.length, 2); assert.equal(akte.vehicles[0].owner, 'Max Mustermann'); ok('Strafakte mit Beschuldigtem, Zeugin und Tatfahrzeug (aus dem Register verknüpft)');
+  r = await pf.call('POST', `/api/cases/${akte.id}/charges`, { catalogId: raub.id, personId: akte.persons[0].id }); assert.equal(r.case.charges[0].title, 'Raub'); assert.equal(r.case.totals.jailMonths, 24); ok('Tatvorwurf aus dem Katalog (Bußgeld/Haft vorbelegt, Summen)');
+  r = await pf.call('POST', `/api/cases/${akte.id}/evidence`, { kind: 'photo', title: 'Überwachungsfoto', description: 'Zeigt den Täter', favors: 'incriminating', linkUrl: 'https://example.com/foto.png' }); assert.equal(r.status, 201); assert.match(r.case.evidence[0].tag, /ST-\d{4}-0001\/E01/);
+  assert.equal((await pf.call('POST', `/api/cases/${akte.id}/evidence`, { kind: 'photo', title: 'Bad', linkUrl: 'javascript:alert(1)' })).status, 400); ok('Beweise mit Kennzeichnung (nur https-Links)');
+  assert.equal((await pf.call('POST', `/api/cases/${akte.id}/events`, { text: 'Zeugin befragt.' })).status, 201); ok('Verlauf/Notiz');
+  r = await pf.call('GET', `/api/citizens/${max.id}`); assert.equal(r.citizen.cases[0].id, akte.id); assert.equal(r.citizen.vehicles[0].cases[0].id, akte.id); ok('Bürgerregister zeigt verlinkte Akten (auch über das Fahrzeug)');
+  r = await bobC.call('GET', `/api/citizens/${max.id}`); assert.equal(r.status, 200); assert.deepEqual(r.citizen.cases, []); assert.deepEqual(r.citizen.vehicles[0].cases, []); ok('Fremde Behörde sieht den Bürger, aber nicht die verlinkten Akten');
+  assert.equal((await bobC.call('GET', `/api/cases/${akte.id}`)).status, 404); assert.equal((await bobC.call('GET', '/api/cases')).cases.length, 0); ok('Akte einer anderen Behörde: unsichtbar (404, nicht in der Liste)');
+  assert.equal((await bobC.call('POST', `/api/cases/${akte.id}/events`, { text: 'Fremd' })).status, 404);
+
+  // Freigabe, Schreibschutz, Vertraulichkeit, Urteil
+  assert.equal((await pf.call('PUT', `/api/cases/${akte.id}/share`, { departmentIds: [bcsoDept] })).status, 403); ok('Freigabe braucht das Recht cases.share');
+  await addPerms('cases.share');
+  r = await pf.call('PUT', `/api/cases/${akte.id}/share`, { departmentIds: [bcsoDept] }); assert.equal(r.status, 200); assert.equal(r.case.sharedWith[0].id, bcsoDept);
+  r = await bobC.call('GET', `/api/cases/${akte.id}`); assert.equal(r.status, 200); assert.equal(r.case.can.edit, false); ok('Mit Behörde geteilte Akte: lesbar');
+  assert.equal((await bobC.call('POST', `/api/cases/${akte.id}/events`, { text: 'Fremd' })).status, 403); assert.equal((await bobC.call('PATCH', `/api/cases/${akte.id}`, { title: 'Fremd' })).status, 403); ok('… aber nur die führende Behörde darf ändern');
+  const chargeId = (await pf.call('GET', `/api/cases/${akte.id}`)).case.charges[0].id;
+  assert.equal((await pf.call('PATCH', `/api/cases/${akte.id}/charges/${chargeId}`, { status: 'convicted' })).status, 403); assert.equal((await pf.call('PATCH', `/api/cases/${akte.id}`, { status: 'decided' })).status, 403); ok('Urteil/„Entschieden“ nur mit cases.verdict');
+  assert.equal((await pf.call('PATCH', `/api/cases/${akte.id}`, { confidential: true })).status, 403); ok('Vertraulich setzen nur mit cases.confidential');
+  await addPerms('cases.confidential');
+  assert.equal((await pf.call('PATCH', `/api/cases/${akte.id}`, { confidential: true })).status, 200);
+  assert.equal((await bobC.call('GET', `/api/cases/${akte.id}`)).status, 200); // Bob hat über dieselbe Rolle ebenfalls cases.confidential
+  r = await admin.call('POST', '/api/roles', { name: 'Nur lesen', permissions: ['cases.view', 'citizens.view'] }); const roRole = r.role.id;
+  await admin.call('PATCH', `/api/users/${bob.id}`, { roleIds: [roRole] }); assert.equal((await bobC.call('GET', `/api/cases/${akte.id}`)).status, 404); ok('Vertrauliche Akte nur für Team und Inhaber von cases.confidential');
+  await admin.call('PATCH', `/api/users/${bob.id}`, { roleIds: [officerRole.id] });
+  r = await admin.call('PATCH', `/api/cases/${akte.id}`, { status: 'decided', outcome: 'Verurteilt.' }); assert.equal(r.status, 200); assert.equal(r.case.status.closed, true); ok('Administrator darf Ergebnis eintragen und Akte entscheiden');
+  r = await admin.call('GET', '/api/cases?type=criminal&q=Mustermann'); assert.equal(r.cases.length, 1); assert.equal((await admin.call('GET', '/api/cases?q=4711')).cases.length, 1); assert.equal((await admin.call('GET', `/api/cases?citizen=${max.id}`)).cases.length, 1); ok('Aktensuche nach Person, Kennzeichen, Typ');
+  r = await admin.call('POST', '/api/cases', { type: 'misdemeanor', title: 'Falschparker', persons: [{ citizenId: max.id, role: 'respondent' }] }); assert.match(r.case.number, /^OWI-\d{4}-0001$/);
+  r = await admin.call('POST', '/api/cases', { type: 'administrative', title: 'Gewerbeauflage', scope: 'state' }); assert.equal(r.status, 201); const vw = r.case; assert.match(vw.number, /^VW-/);
+  assert.equal((await pf.call('GET', `/api/cases/${vw.id}`)).status, 200); assert.equal((await bobC.call('GET', `/api/cases/${vw.id}`)).status, 200); ok('Staatsweite Akte für alle Behörden sichtbar; Aktenarten OWI/VW mit eigenem Zähler');
+  assert.equal((await pf.call('POST', '/api/cases/catalog', { title: 'Neu', type: 'criminal' })).status, 403); assert.equal((await admin.call('POST', '/api/cases/catalog', { title: 'Cyberkriminalität', type: 'criminal', fineCents: 100000, jailMonths: 6 })).status, 201); ok('Straftatenkatalog nur mit cases.catalog pflegen');
+
   // ══ Kriminelle Module sind entfernt ══
   for (const p of ['/api/market/deals', '/api/partners', '/api/credit/requests', '/api/tab/companies', '/api/hack/admin']) assert.ok([404, 403].includes((await admin.call('GET', p)).status), p);
   assert.equal((await admin.call('GET', '/api/market/deals')).status, 404); ok('Börse, Externe Zugänge, Kredit, Deckel und Exekutive-Zugang sind nicht mehr erreichbar');

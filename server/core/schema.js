@@ -1211,4 +1211,164 @@ export const SCHEMA_MIGRATIONS = [
   CREATE INDEX idx_vehicles_department ON vehicles(department_id);
   CREATE INDEX idx_warehouses_department ON warehouses(department_id);
   `,
+  /* v-akten – Staatsdatenbank (Bürgerregister) und Aktensystem der Behörden */ `
+  CREATE TABLE citizens (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    citizen_number TEXT UNIQUE,
+    last_name      TEXT NOT NULL,
+    first_name     TEXT NOT NULL,
+    birth_date     TEXT,
+    birth_place    TEXT NOT NULL DEFAULT '',
+    gender         TEXT NOT NULL DEFAULT '',
+    nationality    TEXT NOT NULL DEFAULT '',
+    phone          TEXT NOT NULL DEFAULT '',
+    email          TEXT NOT NULL DEFAULT '',
+    street         TEXT NOT NULL DEFAULT '',
+    postal         TEXT NOT NULL DEFAULT '',
+    city           TEXT NOT NULL DEFAULT '',
+    occupation     TEXT NOT NULL DEFAULT '',
+    height_cm      INTEGER,
+    notes          TEXT NOT NULL DEFAULT '',
+    status         TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','deceased','missing')),
+    is_wanted      INTEGER NOT NULL DEFAULT 0,
+    wanted_reason  TEXT NOT NULL DEFAULT '',
+    wanted_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    wanted_at      TEXT,
+    created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL
+  );
+  CREATE INDEX idx_citizens_name ON citizens(last_name COLLATE NOCASE, first_name COLLATE NOCASE);
+  CREATE TABLE citizen_vehicles (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    citizen_id  INTEGER NOT NULL REFERENCES citizens(id) ON DELETE CASCADE,
+    plate       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    make_model  TEXT NOT NULL,
+    color       TEXT NOT NULL DEFAULT '',
+    vin         TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT 'registered' CHECK (status IN ('registered','stolen','impounded','deregistered')),
+    notes       TEXT NOT NULL DEFAULT '',
+    registered_at TEXT,
+    created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+  CREATE INDEX idx_citizen_vehicles_owner ON citizen_vehicles(citizen_id);
+  CREATE TABLE citizen_licenses (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    citizen_id  INTEGER NOT NULL REFERENCES citizens(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'valid' CHECK (status IN ('valid','suspended','revoked','expired')),
+    issued_at   TEXT,
+    valid_until TEXT,
+    note        TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX idx_citizen_licenses_owner ON citizen_licenses(citizen_id);
+
+  CREATE TABLE cases (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_number   TEXT NOT NULL UNIQUE,
+    type_key      TEXT NOT NULL,
+    title         TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'open',
+    priority      TEXT NOT NULL DEFAULT 'normal',
+    department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+    scope         TEXT NOT NULL DEFAULT 'department' CHECK (scope IN ('department','state')),
+    confidential  INTEGER NOT NULL DEFAULT 0,
+    incident_at   TEXT,
+    location      TEXT NOT NULL DEFAULT '',
+    summary       TEXT NOT NULL DEFAULT '',
+    narrative     TEXT NOT NULL DEFAULT '',
+    outcome       TEXT NOT NULL DEFAULT '',
+    lead_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    closed_at     TEXT
+  );
+  CREATE INDEX idx_cases_department ON cases(department_id);
+  CREATE INDEX idx_cases_type ON cases(type_key);
+  CREATE TABLE case_departments (
+    case_id       INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+    PRIMARY KEY (case_id, department_id)
+  );
+  CREATE TABLE case_team (
+    case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (case_id, user_id)
+  );
+  CREATE TABLE case_persons (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id    INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    citizen_id INTEGER REFERENCES citizens(id) ON DELETE SET NULL,
+    name_text  TEXT NOT NULL DEFAULT '',
+    role       TEXT NOT NULL,
+    note       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_case_persons_case ON case_persons(case_id);
+  CREATE INDEX idx_case_persons_citizen ON case_persons(citizen_id);
+  CREATE TABLE charge_catalog (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    code        TEXT NOT NULL DEFAULT '',
+    title       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    type_key    TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    fine_cents  INTEGER NOT NULL DEFAULT 0,
+    jail_months INTEGER NOT NULL DEFAULT 0,
+    is_active   INTEGER NOT NULL DEFAULT 1
+  );
+  CREATE TABLE case_charges (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id     INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    person_id   INTEGER REFERENCES case_persons(id) ON DELETE CASCADE,
+    catalog_id  INTEGER REFERENCES charge_catalog(id) ON DELETE SET NULL,
+    title       TEXT NOT NULL,
+    statute     TEXT NOT NULL DEFAULT '',
+    count       INTEGER NOT NULL DEFAULT 1,
+    status      TEXT NOT NULL DEFAULT 'alleged' CHECK (status IN ('alleged','convicted','acquitted','dropped')),
+    fine_cents  INTEGER NOT NULL DEFAULT 0,
+    jail_months INTEGER NOT NULL DEFAULT 0,
+    note        TEXT NOT NULL DEFAULT '',
+    created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX idx_case_charges_case ON case_charges(case_id);
+  CREATE TABLE case_evidence (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id      INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    tag          TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    collected_at TEXT,
+    collected_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    location     TEXT NOT NULL DEFAULT '',
+    link_url     TEXT NOT NULL DEFAULT '',
+    favors       TEXT NOT NULL DEFAULT 'neutral' CHECK (favors IN ('incriminating','exonerating','neutral')),
+    created_at   TEXT NOT NULL
+  );
+  CREATE INDEX idx_case_evidence_case ON case_evidence(case_id);
+  CREATE TABLE case_vehicles (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id            INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    citizen_vehicle_id INTEGER REFERENCES citizen_vehicles(id) ON DELETE SET NULL,
+    plate              TEXT NOT NULL,
+    description        TEXT NOT NULL DEFAULT '',
+    role               TEXT NOT NULL DEFAULT 'involved'
+  );
+  CREATE INDEX idx_case_vehicles_case ON case_vehicles(case_id);
+  CREATE INDEX idx_case_vehicles_plate ON case_vehicles(plate COLLATE NOCASE);
+  CREATE TABLE case_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id    INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    kind       TEXT NOT NULL DEFAULT 'note',
+    text       TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_case_events_case ON case_events(case_id);
+  `,
 ];
