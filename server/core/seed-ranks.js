@@ -43,15 +43,15 @@ export function seedRanks() {
  * Der Superadmin braucht keine Rolle – er hat immer alles.
  */
 const LEVELS = [
-  ['chat.view', 'chat.send', 'map.view', 'vehicles.view', 'warehouse.view', 'market.view', 'org.view', 'board.view', 'changelog.view', 'legal.view', 'market.trade', 'schedule.view', 'activity.absence'],
-  ['warehouse.stock', 'vehicles.view_location', 'vehicles.edit', 'contacts.view'],
+  ['citizens.view', 'cases.view', 'chat.view', 'chat.send', 'map.view', 'vehicles.view', 'warehouse.view', 'market.view', 'org.view', 'board.view', 'changelog.view', 'legal.view', 'market.trade', 'schedule.view', 'activity.absence'],
+  ['citizens.create', 'citizens.edit', 'citizens.vehicles', 'cases.create', 'cases.edit', 'warehouse.stock', 'vehicles.view_location', 'vehicles.edit', 'contacts.view'],
   ['map.edit', 'chat.pin'],
   ['market.deals.manage', 'schedule.create', 'vehicles.create', 'warehouse.view_access', 'contacts.edit', 'legal.cases.view'],
   ['market.wanted.manage', 'warehouse.items', 'partners.view'],
-  ['users.view', 'tab.view', 'credit.view', 'stats.view', 'schedule.tasks.assign'],
+  ['citizens.licenses', 'citizens.wanted', 'cases.share', 'users.view', 'tab.view', 'credit.view', 'stats.view', 'schedule.tasks.assign'],
   ['users.approve', 'schedule.manage', 'activity.view', 'onboarding.check', 'chat.moderate', 'market.catalog.manage', 'finance.view', 'vehicles.delete'],
   ['warehouse.manage', 'warehouse.prices', 'tab.statements', 'credit.manage', 'lookups.view'],
-  ['partners.manage', 'activity.manage', 'onboarding.manage', 'users.create', 'users.edit', 'users.badge', 'credit.payments', 'chat.partners', 'chat.manage', 'tickets.manage', 'board.manage', 'contacts.delete', 'contacts.bank', 'legal.cases.edit', 'legal.cases.billing'],
+  ['cases.catalog', 'cases.confidential', 'cases.delete', 'citizens.delete', 'partners.manage', 'activity.manage', 'onboarding.manage', 'users.create', 'users.edit', 'users.badge', 'credit.payments', 'chat.partners', 'chat.manage', 'tickets.manage', 'board.manage', 'contacts.delete', 'contacts.bank', 'legal.cases.edit', 'legal.cases.billing'],
   ['partners.documents', 'users.watchlist', 'tab.manage_companies', 'credit.limits', 'finance.manual', 'finance.export', 'audit.view', 'roles.view', 'lookups.manage'],
   ['users.personnel_view', 'users.personnel_edit', 'users.avatar_edit', 'users.avatar_remove', 'audit.export', 'org.manage', 'admin.access', 'config.view', 'changelog.manage', 'help.manage', 'contacts.secret', 'legal.manage', 'legal.cases.confidential', 'legal.cases.delete'],
   ['users.password_reset', 'partners.levels', 'roles.manage', 'system.backup', 'system.apps', 'config.edit', 'market.delete', 'credit.delete', 'tab.delete', 'partners.delete', 'finance.delete', 'tickets.delete', 'users.delete'],
@@ -63,6 +63,7 @@ const ROLES = [
   { name: 'Dienstgruppenleiter', desc: 'Führt eine Schicht oder Streife, vergibt Aufträge', color: '#34d399', upto: 5 },
   { name: 'Dienststellenleitung', desc: 'Personal, Einarbeitung und Verwaltung einer Dienststelle', color: '#f59e0b', upto: 8 },
   { name: 'Behördenleitung', desc: 'Leitung einer Behörde mit erweiterten Verwaltungsrechten', color: '#f97316', upto: 10 },
+  { name: 'Justiz (DOJ)', desc: 'Staatsanwaltschaft und Gerichte: Urteile, Ergebnisse, Freigaben und Katalog', color: '#7c3aed', extra: ['citizens.view', 'citizens.create', 'citizens.edit', 'citizens.licenses', 'citizens.wanted', 'cases.view', 'cases.create', 'cases.edit', 'cases.share', 'cases.verdict', 'cases.confidential', 'cases.catalog', 'cases.delete', 'departments.all'] },
   { name: 'Personalabteilung', desc: 'Dienstnummern, Freischaltung und Personalakten', color: '#a78bfa', extra: ['users.view', 'users.create', 'users.edit', 'users.approve', 'users.badge', 'users.personnel_view', 'users.personnel_edit', 'org.view', 'onboarding.check', 'onboarding.manage'] },
 ];
 

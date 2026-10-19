@@ -17,6 +17,8 @@ export const NAV = [
   {
     section: 'Einsatz',
     items: [
+      { id: 'citizens', label: 'Bürgerregister', subtitle: 'Einwohner, Fahrzeuge, Lizenzen und verlinkte Akten', icon: 'users', path: '/citizens', perm: ['citizens.view'], win: { w: 1180, h: 720 }, view: () => import('./views/citizens.js') },
+      { id: 'cases', label: 'Akten', subtitle: 'Ordnungswidrigkeiten, Straftaten, Verwaltungsrecht und mehr', icon: 'list', path: '/cases', perm: ['cases.view'], win: { w: 1240, h: 760 }, view: () => import('./views/cases.js') },
       { id: 'map', label: 'Karte', subtitle: 'Einsatzkarte mit Waypoints, Zonen und Postleitzahlen', icon: 'map', path: '/map', perm: ['map.view'], win: { w: 1200, h: 720 }, view: () => import('./views/map.js') },
       { id: 'warehouse', label: 'Lager', subtitle: 'Lagerstandorte, Bestand und Preisspannen', icon: 'storage', path: '/warehouse', perm: ['warehouse.view'], win: { w: 1120, h: 700 }, view: () => import('./views/warehouse.js') },
       { id: 'vehicles', label: 'Fahrzeuge', subtitle: 'Fuhrpark, Zustand und Standorte', icon: 'car', path: '/vehicles', perm: ['vehicles.view'], win: { w: 1120, h: 700 }, view: () => import('./views/vehicles.js') },
@@ -63,7 +65,7 @@ export const NAV = [
  */
 export const DOCK_GROUPS = [
 
-  { id: 'ops', label: 'Einsatz', items: ['map', 'vehicles'] },
+  { id: 'ops', label: 'Einsatz', items: ['citizens', 'cases', 'map', 'vehicles'] },
   { id: 'money', label: 'Finanzen', items: ['finance', 'stats'] },
   { id: 'comm', label: 'Kommunikation', items: ['chat', 'tickets', 'contacts'] },
   { id: 'admin', label: 'Verwaltung', items: ['users', 'onboarding', 'roles', 'org'] },
