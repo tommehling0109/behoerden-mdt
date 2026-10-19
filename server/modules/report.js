@@ -8,7 +8,7 @@ import { memberLabel } from '../core/identity.js';
 /**
  * Wochen- und Monatsbericht: die wichtigsten Zahlen eines Zeitraums, jeweils im Vergleich zum Zeitraum davor – auf Knopfdruck, als Ansicht in der Statistik-App
  * und als PDF. Wie in der Statistik erscheint jeder Abschnitt nur, wenn der Benutzer das Ansichtsrecht des Bereichs hat (stats.view ist die Grundvoraussetzung);
- * es gibt nur Zahlen und Personalnummern, keine Namen. Zeiträume: Woche = Montag bis Sonntag, Monat = Kalendermonat (UTC-Datum).
+ * es gibt nur Zahlen und Dienstnummern, keine Namen. Zeiträume: Woche = Montag bis Sonntag, Monat = Kalendermonat (UTC-Datum).
  */
 const has = (u, p) => u.isAdmin || u.perms.has(p);
 const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;

@@ -10,7 +10,7 @@ in der jeweiligen Phase – die Phasenreihenfolge bleibt verbindlich.
 |---|---|
 | `users` (+ `member_number`, `rank_id`, `department_id`, `supervisor_id`) | Mitglied = Benutzer mit Nummer, Rang, Abteilung, Vorgesetztem. RP-Name = `display_name` |
 | `ranks`, `departments`, `rank_permissions` | frei konfigurierbare Struktur; Rang ≠ Rechte (Rang-Rechte optional, standardmäßig leer) |
-| `sequences` + `core/members.js` | Mitgliedsnummern, nie wiederverwendet, Prefix/Startnummer konfigurierbar (Standard `MDT-`, ab `220`) |
+| `sequences` + `core/members.js` | Dienstnummern, nie wiederverwendet, Prefix/Startnummer konfigurierbar (Standard `MDT-`, ab `220`) |
 | `entity_links` + `core/links.js` | **eine** Beziehungstabelle für alle Modulverknüpfungen (keine doppelte Speicherung) |
 | `external_refs` + `core/integrations.js` | Zuordnung interner Datensätze ↔ externe IDs (FiveM) + Provider-/Event-Registry |
 | Modul-Registry (Server + `public/js/modules.js`) | neue Apps = ein Modul + ein Navigationseintrag |
@@ -36,7 +36,7 @@ map_point:5   --represents--->  storage:2
 ## Geplante Module (nach Phase)
 
 ### Mitarbeiter-App (Phase 3, „Mitglieder“)
-* Liste/Profil auf Basis von `users`: Foto, RP-Name, **Mitgliedsnummer**, Rang, Abteilung, Status, Vorgesetzter, letzter Login.
+* Liste/Profil auf Basis von `users`: Foto, RP-Name, **Dienstnummer**, Rang, Abteilung, Status, Vorgesetzter, letzter Login.
 * Neu: `dienststatus`, `last_activity_at`; Profilbild als Datei (siehe Dateien) mit `avatar_file_id`.
 * Profilbild-Upload: serverseitige Typ-/Größenprüfung (nur PNG/JPEG/WebP, Magic-Bytes), Neuname per Zufalls-ID,
   Auslieferung über `/files/:id` mit Rechteprüfung – nie über den Originalnamen.
@@ -112,7 +112,7 @@ registerIntegration({ name: 'fivem', handlers: {
 | Phase | Enthält (aus den Zusätzen) |
 |---|---|
 | 1 (fertig) | Fundament, Desktop-UI, Auth, Freischaltung, Rollen/Rechte, Audit, Konfiguration |
-| 1+/2 (jetzt) | **Mitgliedsnummern, Ränge, Abteilungen, Hierarchie, Vorgesetzte**, Link-/Integrations-Grundlagen |
+| 1+/2 (jetzt) | **Dienstnummern, Ränge, Abteilungen, Hierarchie, Vorgesetzte**, Link-/Integrations-Grundlagen |
 | 3 | Dashboard, Benachrichtigungen, **Mitarbeiter-App** (inkl. Profilbild), Akten, Vorgänge, Dokumente, Kalender, **Aufgaben** |
 | 4 | Fahrzeuge (+ Zustand, Garage/Stellplatz, Nutzer) |
 | 5 | Lager/Garagen/Orte, Stash-Zuordnung |

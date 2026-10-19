@@ -111,7 +111,7 @@ const dealDto = (d, partnerView, viewerId = null) => {
     item: { id: d.item_id, name: d.item_is_other && d.other_name ? `Sonstiges: ${d.other_name}` : d.item_name, isOther: !!d.item_is_other, unit: d.item_unit, category: d.cat_id ? { id: d.cat_id, label: d.cat_label, color: d.cat_color } : null },
     // Partner sehen weder den Namen der Gegenseite noch interne Zuständigkeiten – nur die MDT-Nummer des Geschäfts
     partner: partnerView ? undefined : { id: d.partner_id, name: d.partner_name, number: d.partner_number, level: levelBrief(d.partner_id), isMember: !!get('SELECT user_id FROM partners WHERE id = ?', d.partner_id)?.user_id },
-    // Staff: Zuständiger (Personalnummer, man selbst „Du“). Partner: Ansprechpartner nur als Personalnummer – ohne Zuweisung bleibt es „Team“
+    // Staff: Zuständiger (Dienstnummer, man selbst „Du“). Partner: Ansprechpartner nur als Dienstnummer – ohne Zuweisung bleibt es „Team“
     assignee: d.assignee_id ? { id: partnerView ? undefined : d.assignee_id, displayName: !partnerView && d.assignee_id === viewerId ? 'Du' : (d.assignee_number || `Mitglied #${d.assignee_id}`), number: d.assignee_number ?? null } : null,
     handover: hasHandover && (!partnerView || HANDOVER_VISIBLE.includes(d.status))
       ? { place: d.handover_place_id ? { id: d.handover_place_id, label: d.place_label, description: d.place_desc } : null, info: d.handover_info, payoutInfo: d.payout_info }
@@ -121,7 +121,7 @@ const dealDto = (d, partnerView, viewerId = null) => {
 };
 const loadDeal = (id, partnerView = false, viewerId = null) => { const d = get(`${DEAL_SQL} WHERE d.id = ?`, id); return d ? dealDto(d, partnerView, viewerId) : null; };
 const eventsOf = (dealId, partnerView, viewerId = null) => {
-  // Wer ist dem Geschäft zugewiesen? Dessen Handlungen erscheinen für den Partner unter der Personalnummer statt „Team“
+  // Wer ist dem Geschäft zugewiesen? Dessen Handlungen erscheinen für den Partner unter der Dienstnummer statt „Team“
   const asg = partnerView ? get('SELECT u.id uid, u.member_number n FROM market_deals d JOIN users u ON u.id = d.assignee_id WHERE d.id = ?', dealId) : null;
   return eventsRaw(dealId, partnerView, viewerId, asg);
 };
@@ -413,7 +413,7 @@ export default {
     { key: 'market.currency', group: 'Börse', label: 'Währungssymbol', help: 'Wird hinter Preisen angezeigt (z. B. $).', type: 'string', default: '$', max: 6, public: true },
     { key: 'market.deal_prefix', group: 'Börse', label: 'Präfix der Geschäftsnummer', help: 'Partner sehen Geschäfte nur unter dieser Nummer (z. B. MDT-G-100001).', type: 'string', default: 'MDT-G-', max: 12 },
     { key: 'market.partner_item_default', group: 'Börse', label: 'Neue Artikel: Sichtbarkeit für externe Partner', help: 'Voreinstellung beim Anlegen eines Artikels. Je Artikel lässt sich das ändern (alle Partner, nur ausgewählte oder keine). So sehen Partner nur, was sie sehen sollen – nicht, was bei uns im Lager liegt.', type: 'select', default: 'all', options: [{ value: 'all', label: 'Alle Partner' }, { value: 'selected', label: 'Nur ausgewählte Partner' }, { value: 'none', label: 'Keine Partner' }] },
-    { key: 'market.member_trade', group: 'Börse', label: 'Mitglieder dürfen wie Partner handeln', help: 'Schaltet die App „Handel“ für Mitglieder mit dem Recht „Börse: als Mitglied handeln“ frei: Angebote einstellen, auf Gesuche antworten und eigene Geschäfte verfolgen – wie ein externer Partner. Das Team bearbeitet diese Geschäfte wie alle anderen (Mitglieder erscheinen als „Mitglied <Personalnummer>“).', type: 'bool', default: false, public: true },
+    { key: 'market.member_trade', group: 'Börse', label: 'Mitglieder dürfen wie Partner handeln', help: 'Schaltet die App „Handel“ für Mitglieder mit dem Recht „Börse: als Mitglied handeln“ frei: Angebote einstellen, auf Gesuche antworten und eigene Geschäfte verfolgen – wie ein externer Partner. Das Team bearbeitet diese Geschäfte wie alle anderen (Mitglieder erscheinen als „Mitglied <Dienstnummer>“).', type: 'bool', default: false, public: true },
     { key: 'market.deal_start', group: 'Börse', label: 'Startnummer der Geschäfte', type: 'number', default: 100001, min: 1, max: 99999999 },
   ],
   init() {

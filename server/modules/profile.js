@@ -9,7 +9,7 @@ import { decodeImage, IMAGE_MIME } from '../core/images.js';
 /**
  * Profilbilder: jedes Mitglied lädt sein eigenes hoch (PNG/JPEG/WebP, Typ per Dateikopf geprüft, max. 2 MB, kein SVG).
  * Mitglieder mit dem Recht „users.avatar_remove“ können Bilder anderer entfernen (z. B. bei unpassenden Inhalten).
- * Bilder werden zusammen mit der Personalnummer gezeigt – Namen bleiben anonym.
+ * Bilder werden zusammen mit der Dienstnummer gezeigt – Namen bleiben anonym.
  */
 const dir = () => join(dirname(DB_PATH), 'avatars');
 const fileOf = (id, ext) => join(dir(), `${id}.${ext}`);

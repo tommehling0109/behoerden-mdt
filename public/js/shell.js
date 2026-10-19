@@ -167,7 +167,7 @@ export function showApp(onLogout, opts = {}) {
   const fitGreet = () => { const room = Math.floor((window.innerWidth - (document.querySelector('.dock')?.offsetWidth ?? 0)) / 2) - 36; greet.style.maxWidth = `${Math.min(320, Math.max(0, room))}px`; greet.hidden = room < 130 || !greet.childNodes.length; };
   const widget = h('div', { class: 'desk-widget', 'aria-hidden': 'true' });
   const dwHm = h('span', null), dwS = h('span', { class: 'dw-sec' }), dwDate = h('div', { class: 'dw-date' }), dwName = h('div', { class: 'dw-name' });
-  mount(widget, h('div', { class: 'dw-time' }, dwHm, dwS), dwDate, dwName, h('div', { class: 'dw-note' }, 'Fiktives System – nur für den Unity Life Roleplay Server'));
+  mount(widget, h('div', { class: 'dw-time' }, dwHm, dwS), dwDate, dwName, h('div', { class: 'dw-note' }, 'Fiktives System – nur für den Roleplay-Server'));
   everySecond(widget, () => { const t = timeParts(); dwHm.textContent = t.hm; dwS.textContent = `:${t.s}`; dwDate.textContent = dateLong(); dwName.textContent = state.config['system.name'] || 'MDT'; });
 
   // ── Live-Status + Benachrichtigungen (Glocke) ──
@@ -625,7 +625,7 @@ export function showApp(onLogout, opts = {}) {
   // Sperrbildschirm (Timeout kommt aus der Konfiguration; Entsperren per Passwort bzw. Code)
   lockCtl = initLock({
     scope: opts.partner ? `partner:${state.user.displayName}` : `user:${state.user.id}`,
-    who: opts.partner ? { name: state.user.displayName, label: state.user.displayName } : { name: state.user.displayName, label: state.user.memberNumber ?? state.user.displayName },
+    who: opts.partner ? { name: state.user.displayName, label: state.user.displayName } : { name: state.user.displayName, label: state.user.memberNumber ? `${state.user.displayName} (${state.user.memberNumber})` : state.user.displayName },
     secretLabel: opts.partner ? 'Zugangscode' : 'Passwort',
     verify: (secret) => (opts.partner ? api.post('/api/p/unlock', { code: secret }) : api.post('/api/auth/unlock', { password: secret })),
     onLogout: () => { clearLockState(); lockCtl?.destroy(); onLogout(); },

@@ -45,7 +45,7 @@ export async function openReportDialog({ app = '', onDone, base = '/api/tickets'
   const cat = select(opts.categories.map((c) => ({ value: c.key, label: c.label })), 'bug');
   const desc = h('textarea', { class: 'textarea', rows: 6, maxLength: 4000, placeholder: 'Was hast du gemacht? Was ist passiert? Was hast du erwartet?' });
   const shot = shotPicker();
-  const m = openModal({ title: 'Fehler melden / Ticket eröffnen', body: h('div', null, err, note(base === '/api/tickets' ? 'Dein Ticket sehen das Team und du – gemeldet wird unter deiner Personalnummer. Du findest es auch im Chat unter „Meine Tickets“.' : 'Dein Ticket sehen das Team und du – gemeldet wird unter deiner Partnernummer. Antworten findest du unter „Meine Tickets“ (Symbol oben rechts).', 'info'), h('div', { style: { height: '10px' } }),
+  const m = openModal({ title: 'Fehler melden / Ticket eröffnen', body: h('div', null, err, note(base === '/api/tickets' ? 'Dein Ticket sehen das Team und du – gemeldet wird unter deiner Dienstnummer. Du findest es auch im Chat unter „Meine Tickets“.' : 'Dein Ticket sehen das Team und du – gemeldet wird unter deiner Partnernummer. Antworten findest du unter „Meine Tickets“ (Symbol oben rechts).', 'info'), h('div', { style: { height: '10px' } }),
     field('Art', cat), field('Titel', title), field('Beschreibung', desc), field('Screenshot (optional)', shot.el)),
   footer: [button('Abbrechen', { onClick: () => m.close() }), button('Ticket senden', { variant: 'primary', icon: 'check', onClick: (e) => busy(e.currentTarget, async () => {
     err.replaceChildren();

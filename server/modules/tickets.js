@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 /**
  * Ticketsystem: Jedes Mitglied kann einen Fehler melden (Bug), eine Idee oder Frage einreichen und einen Screenshot anhängen.
  * Der Melder sieht seine Tickets (auch im Chat unter „Meine Tickets“) und kann antworten; das Team (tickets.manage) sieht alle,
- * setzt Status/Priorität/Zuständigkeit und antwortet. Gemeldet wird unter der Personalnummer (Namen bleiben anonym).
+ * setzt Status/Priorität/Zuständigkeit und antwortet. Gemeldet wird unter der Dienstnummer (Namen bleiben anonym).
  */
 const STATUS = { open: ['Offen', '#f59e0b'], in_progress: ['In Arbeit', '#3b82f6'], resolved: ['Gelöst', '#10b981'], closed: ['Geschlossen', '#94a3b8'] };
 const CATEGORY = { bug: 'Fehler / Bug', idea: 'Idee / Wunsch', question: 'Frage', other: 'Sonstiges' };

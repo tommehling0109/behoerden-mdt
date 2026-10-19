@@ -38,7 +38,7 @@ export default async function render(container, ctx) {
   // ── gemeinsame Bausteine ──
   const textarea = (value = '', rows = 4) => h('textarea', { class: 'input', rows, style: { minHeight: `${rows * 22}px`, resize: 'vertical' } }, value);
   function memberPicker(selected) {
-    const set = new Set(selected), q = input({ placeholder: 'Personalnummer suchen …', type: 'search' }), count = h('div', { class: 'help' }), list = h('div', { class: 'sch-pick' });
+    const set = new Set(selected), q = input({ placeholder: 'Dienstnummer suchen …', type: 'search' }), count = h('div', { class: 'help' }), list = h('div', { class: 'sch-pick' });
     const draw = () => { const f = q.value.trim().toLowerCase(); mount(list, opt.members.filter((m) => !f || m.label.toLowerCase().includes(f) || set.has(m.id)).map((m) => { const cb = checkbox(m.label, set.has(m.id)); cb.input.addEventListener('change', () => { cb.input.checked ? set.add(m.id) : set.delete(m.id); count.textContent = `${set.size} ausgewählt`; }); return cb; })); count.textContent = `${set.size} ausgewählt`; };
     q.addEventListener('input', draw); draw();
     return { el: h('div', null, q, count, list), get: () => [...set] };

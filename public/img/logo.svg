@@ -1,6 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1380 930" fill="none">
-  <g stroke="#f5f5f5" stroke-width="56" stroke-linejoin="round" stroke-linecap="round" opacity="0.96">
-    <path d="M440 330 L690 130 L940 330 V610 C940 680 880 740 690 810 C500 740 440 680 440 610 Z"/>
+  <defs><path id="top" d="M 390 465 A 300 300 0 0 1 990 465"/><path id="bot" d="M 360 465 A 330 330 0 0 0 1020 465"/></defs>
+  <g transform="translate(0,-10)">
+    <circle cx="690" cy="465" r="360" stroke="#f4f6fa" stroke-width="14"/>
+    <circle cx="690" cy="465" r="318" stroke="#f4f6fa" stroke-width="4" opacity=".7"/>
+    <circle cx="690" cy="465" r="214" stroke="#f4f6fa" stroke-width="10"/>
+    <text font-family="Segoe UI, Arial, sans-serif" font-size="58" font-weight="700" letter-spacing="14" fill="#f4f6fa"><textPath href="#top" startOffset="50%" text-anchor="middle">STATE OF SAN ANDREAS</textPath></text>
+    <text font-family="Segoe UI, Arial, sans-serif" font-size="40" font-weight="600" letter-spacing="10" fill="#f4f6fa"><textPath href="#bot" startOffset="50%" text-anchor="middle" side="right">LAW · JUSTICE · SERVICE</textPath></text>
+    <polygon points="690.0,275.0 707.3,321.2 756.6,323.4 718.0,354.1 731.1,401.6 690.0,374.4 648.9,401.6 662.0,354.1 623.4,323.4 672.7,321.2" fill="#f4f6fa"/>
+    <text x="690" y="530" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="150" font-weight="800" letter-spacing="8" fill="#f4f6fa">MDT</text>
+    <rect x="560" y="565" width="260" height="8" rx="4" fill="#f4f6fa" opacity=".8"/>
   </g>
-  <text x="690" y="560" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="260" font-weight="700" letter-spacing="10" fill="#f5f5f5">MDT</text>
 </svg>

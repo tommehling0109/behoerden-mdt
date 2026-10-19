@@ -15,16 +15,9 @@ export const NAV = [
     ],
   },
   {
-    section: 'Handel',
-    items: [
-      { id: 'trade', label: 'Handel', subtitle: 'Als Mitglied anbieten und auf Gesuche antworten – wie ein Partner', icon: 'star', path: '/trade', perm: ['market.trade'], cfg: 'market.member_trade', win: { w: 1080, h: 660 }, view: () => import('./views/partner/market.js') },
-      { id: 'market', label: 'Börse', subtitle: 'Ankauf & Verkauf mit externen Partnern', icon: 'tag', path: '/market', perm: ['market.view'], win: { w: 1080, h: 660 }, view: () => import('./views/market.js'), badge: 'marketAwaiting' },
-    ],
-  },
-  {
     section: 'Einsatz',
     items: [
-      { id: 'map', label: 'Karte', subtitle: 'Interaktive Karte mit Waypoints und Postleitzahlen', icon: 'map', path: '/map', perm: ['map.view'], win: { w: 1200, h: 720 }, view: () => import('./views/map.js') },
+      { id: 'map', label: 'Karte', subtitle: 'Einsatzkarte mit Waypoints, Zonen und Postleitzahlen', icon: 'map', path: '/map', perm: ['map.view'], win: { w: 1200, h: 720 }, view: () => import('./views/map.js') },
       { id: 'warehouse', label: 'Lager', subtitle: 'Lagerstandorte, Bestand und Preisspannen', icon: 'storage', path: '/warehouse', perm: ['warehouse.view'], win: { w: 1120, h: 700 }, view: () => import('./views/warehouse.js') },
       { id: 'vehicles', label: 'Fahrzeuge', subtitle: 'Fuhrpark, Zustand und Standorte', icon: 'car', path: '/vehicles', perm: ['vehicles.view'], win: { w: 1120, h: 700 }, view: () => import('./views/vehicles.js') },
     ],
@@ -34,8 +27,8 @@ export const NAV = [
     items: [
       { id: 'finance', label: 'Finanzen', subtitle: 'Journal, Kontostand und Auswertungen', icon: 'wallet', path: '/finance', perm: ['finance.view'], win: { w: 1120, h: 700 }, view: () => import('./views/finance.js') },
       { id: 'stats', label: 'Statistik', subtitle: 'Kennzahlen und Diagramme aus allen Bereichen', icon: 'chart', path: '/stats', perm: ['stats.view'], win: { w: 1120, h: 700 }, view: () => import('./views/stats.js') },
-      { id: 'credit', label: 'Kredit', subtitle: 'Kreditanfragen, Zinsen und Ratenpläne', icon: 'bank', path: '/credit', perm: ['credit.view'], win: { w: 1120, h: 680 }, view: () => import('./views/credit.js'), badge: 'creditAwaiting' },
-      { id: 'tab', label: 'Deckel', subtitle: 'Firmen-Deckel, Abrechnungen und Zahlungen', icon: 'dollar', path: '/deckel', perm: ['tab.view', 'tab.statements', 'tab.manage_companies'], win: { w: 1120, h: 680 }, view: () => import('./views/tab.js') },
+
+
     ],
   },
   {
@@ -54,7 +47,7 @@ export const NAV = [
       { id: 'users', label: 'Benutzer', subtitle: 'Zugänge verwalten und freischalten', icon: 'users', path: '/admin/users', perm: ['users.view'], win: { w: 1020, h: 640 }, view: () => import('./views/admin/users.js'), badge: 'pendingUsers' },
       { id: 'roles', label: 'Rollen & Rechte', subtitle: 'Rollen definieren und Berechtigungen zuweisen', icon: 'shield', path: '/admin/roles', perm: ['roles.view'], view: () => import('./views/admin/roles.js') },
       { id: 'org', label: 'Organisation', subtitle: 'Ränge, Abteilungen und Hierarchie', icon: 'sitemap', path: '/admin/org', perm: ['org.view'], win: { w: 1020, h: 640 }, view: () => import('./views/admin/org.js') },
-      { id: 'partners', label: 'Externe Zugänge', subtitle: 'Links und Codes für Partner verwalten', icon: 'link', path: '/admin/partners', perm: ['partners.view'], win: { w: 1000, h: 640 }, view: () => import('./views/admin/partners.js') },
+
       { id: 'lookups', label: 'Kategorien & Status', subtitle: 'Auswahllisten, Kategorien und Status-Beschriftungen', icon: 'list', path: '/admin/lookups', perm: ['lookups.view'], win: { w: 900, h: 620 }, view: () => import('./views/admin/lookups.js') },
       { id: 'config', label: 'Konfiguration', subtitle: 'Darstellung und Systemverhalten anpassen', icon: 'settings', path: '/admin/config', perm: ['config.view', 'hack.manage', 'legal.manage'], view: () => import('./views/admin/config.js') },
       { id: 'audit', label: 'Audit-Log', subtitle: 'Nachvollziehbarkeit aller wichtigen Aktionen', icon: 'audit', path: '/admin/audit', perm: ['audit.view'], win: { w: 1020, h: 640 }, view: () => import('./views/admin/audit.js') },
@@ -69,11 +62,11 @@ export const NAV = [
  * Die Reihenfolge im Dock folgt der Navigation: eine Gruppe steht dort, wo ihre erste App steht.
  */
 export const DOCK_GROUPS = [
-  { id: 'trade', label: 'Handel & Lager', items: ['trade', 'market', 'warehouse'] },
+
   { id: 'ops', label: 'Einsatz', items: ['map', 'vehicles'] },
-  { id: 'money', label: 'Finanzen', items: ['finance', 'stats', 'credit', 'tab'] },
+  { id: 'money', label: 'Finanzen', items: ['finance', 'stats'] },
   { id: 'comm', label: 'Kommunikation', items: ['chat', 'tickets', 'contacts'] },
-  { id: 'admin', label: 'Verwaltung', items: ['users', 'onboarding', 'roles', 'org', 'partners'] },
+  { id: 'admin', label: 'Verwaltung', items: ['users', 'onboarding', 'roles', 'org'] },
   { id: 'system', label: 'System', items: ['lookups', 'config', 'audit'] },
 ];
 
@@ -109,9 +102,9 @@ export const PARTNER_NAV = [
   {
     section: 'Apps',
     items: [
-      { id: 'market', label: 'Börse', subtitle: 'Angebote, Gesuche und Geschäfte', icon: 'tag', win: { w: 1000, h: 660 }, view: () => import('./views/partner/market.js'), badge: 'marketNew' },
+
       { id: 'chat', label: 'Chat', subtitle: 'Nachrichten mit dem Team', icon: 'chat', win: { w: 960, h: 620 }, view: () => import('./views/partner/chat.js'), badge: 'chatUnread' },
-      { id: 'credit', label: 'Kredit', subtitle: 'Kredite anfragen und Raten verfolgen', icon: 'bank', win: { w: 1000, h: 660 }, view: () => import('./views/partner/credit.js'), badge: 'creditNew' },
+
       { id: 'help', label: 'Hilfe', subtitle: 'Anleitungen für deinen Zugang', icon: 'help', win: { w: 1040, h: 660 }, view: () => import('./views/help.js') },
     ],
   },

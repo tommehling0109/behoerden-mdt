@@ -6,7 +6,7 @@ import { watchFor } from './watchlist.js';
 import { audit } from '../core/audit.js';
 import { assignMemberNumber } from '../core/members.js';
 import { startOnboarding } from './onboarding.js';
-import { memberLabel } from '../core/identity.js';
+import { memberLabel, formatMember } from '../core/identity.js';
 import { purgeUserFiles } from '../core/purge.js';
 
 const SUPERADMIN_ROLE = { id: -1, name: 'Superadmin', color: '#f59e0b', isSystem: true };
@@ -16,15 +16,17 @@ const STATUSES = ['pending', 'active', 'blocked', 'rejected'];
 const USERNAME_RE = /^[\p{L}\p{N}._-]+$/u;
 
 const ORG_JOIN = `SELECT u.*, r.name rank_name, r.color rank_color, d.name dept_name, d.color dept_color,
-  s.member_number supervisor_number
+  s.member_number supervisor_number, s.display_name supervisor_name
   FROM users u LEFT JOIN ranks r ON r.id=u.rank_id LEFT JOIN departments d ON d.id=u.department_id LEFT JOIN users s ON s.id=u.supervisor_id`;
 
 /**
  * Anonymität mit Hierarchie: Den echten Namen sieht man bei sich selbst, als Superadmin sowie bei Mitgliedern, die in der Hierarchie UNTER einem stehen
- * (übergeordneter Rang oder Vorgesetzten-Kette). Alle anderen sehen nur die Personalnummer.
+ * (übergeordneter Rang oder Vorgesetzten-Kette). Alle anderen sehen nur die Dienstnummer.
  */
 const viewerOf = (u) => (u && typeof u === 'object' ? { id: u.id, isSuperadmin: !!u.isSuperadmin, rankId: u.rank?.id ?? null } : { id: u ?? null });
 function mayUnmask(viewer, u) {
+  return true; // Behörden-MDT: Klarnamen sind für alle Mitglieder sichtbar
+  // eslint-disable-next-line no-unreachable
   if (!viewer?.id) return false;
   if (u.id === viewer.id || viewer.isSuperadmin) return true;
   if (viewer.rankId && u.rank_id) {
@@ -43,7 +45,7 @@ const listDto = (u, viewerIn = null) => { const viewer = viewerOf(viewerIn), see
   createdAt: u.created_at, lastLoginAt: u.last_login_at, memberNumber: u.member_number,
   rank: u.rank_id ? { id: u.rank_id, name: u.rank_name, color: u.rank_color } : null,
   department: u.department_id ? { id: u.department_id, name: u.dept_name, color: u.dept_color } : null,
-  supervisor: u.supervisor_id ? { id: u.supervisor_id, displayName: u.supervisor_id === viewerId ? 'Du' : (u.supervisor_number || `Mitglied #${u.supervisor_id}`), memberNumber: u.supervisor_number } : null,
+  supervisor: u.supervisor_id ? { id: u.supervisor_id, displayName: u.supervisor_id === viewerId ? 'Du' : (formatMember(u.supervisor_name, u.supervisor_number) || `Mitglied #${u.supervisor_id}`), memberNumber: u.supervisor_number } : null,
 }; };
 
 function detail(id, viewerId = null) {
@@ -131,6 +133,7 @@ export default {
     ['users.password_reset', 'Passwörter anderer Mitglieder zurücksetzen'],
     ['users.delete', 'Benutzer löschen'],
     ['users.approve', 'Benutzer freischalten, ablehnen, sperren'],
+    ['users.badge', 'Dienstnummern vergeben und ändern'],
   ],
   routes(r) {
     r.get('/api/users', { perm: 'users.view' }, (ctx) => {
@@ -138,8 +141,8 @@ export default {
       const where = [];
       const p = [];
       if (status && STATUSES.includes(status)) { where.push('u.status = ?'); p.push(status); }
-      // Suche nur nach Personalnummer (bzw. Login von Bewerbern) – Namen lassen sich so nicht erraten
-      if (q) { where.push("(u.member_number LIKE ? OR (u.status = 'pending' AND u.username LIKE ?))"); p.push(`%${q}%`, `%${q}%`); }
+      // Suche nach Name, Dienstnummer oder Login
+      if (q) { where.push('(u.member_number LIKE ? OR u.display_name LIKE ? OR u.username LIKE ?)'); p.push(`%${q}%`, `%${q}%`, `%${q}%`); }
       const rows = all(`${ORG_JOIN} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY u.created_at DESC`, ...p);
       const roles = all('SELECT ur.user_id, r.id, r.name, r.color FROM user_roles ur JOIN roles r ON r.id=ur.role_id ORDER BY r.sort_order,r.name');
       const counts = Object.fromEntries(all('SELECT status, COUNT(*) c FROM users GROUP BY status').map((x) => [x.status, x.c]));
@@ -171,10 +174,10 @@ export default {
       if (get('SELECT 1 x FROM users WHERE username = ?', username)) throw conflict('Dieser Benutzername ist bereits vergeben.');
       let memberNo = null;
       if (b.memberNumber != null && String(b.memberNumber).trim() !== '') {
-        if (!ctx.user.isSuperadmin) throw forbidden('Personalnummern vergibt nur der Superadmin.');
+        if (!ctx.user.isSuperadmin && !ctx.user.perms.has('users.badge')) throw forbidden('Dienstnummern vergeben nur Superadmin und Mitglieder mit dem Recht „Dienstnummern vergeben“.');
         memberNo = String(b.memberNumber).trim().toUpperCase();
-        if (!MEMBER_NO_RE.test(memberNo)) throw bad('Personalnummer: 2–20 Zeichen (Buchstaben, Ziffern, Bindestrich).');
-        if (get('SELECT 1 x FROM users WHERE member_number = ?', memberNo)) throw conflict('Diese Personalnummer ist bereits vergeben.');
+        if (!MEMBER_NO_RE.test(memberNo)) throw bad('Dienstnummer: 2–20 Zeichen (Buchstaben, Ziffern, Bindestrich).');
+        if (get('SELECT 1 x FROM users WHERE member_number = ?', memberNo)) throw conflict('Diese Dienstnummer ist bereits vergeben.');
       }
       const id = tx(() => {
         const t = now();
@@ -205,14 +208,14 @@ export default {
       tx(() => {
         if (b.isSuperadmin !== undefined) throw forbidden('Die Rolle „Superadmin“ entsteht bei der Einrichtung des Systems und kann weder vergeben noch entzogen werden.');
         if (b.memberNumber !== undefined) {
-          if (!ctx.user.isSuperadmin) throw forbidden('Personalnummern ändert nur der Superadmin.');
+          if (!ctx.user.isSuperadmin && !ctx.user.perms.has('users.badge')) throw forbidden('Dienstnummern ändern nur Superadmin und Mitglieder mit dem Recht „Dienstnummern vergeben“.');
           const mn = String(b.memberNumber ?? '').trim().toUpperCase();
-          if (!MEMBER_NO_RE.test(mn)) throw bad('Personalnummer: 2–20 Zeichen (Buchstaben, Ziffern, Bindestrich).');
-          if (get('SELECT 1 x FROM users WHERE member_number = ? AND id != ?', mn, id)) throw conflict('Diese Personalnummer ist bereits vergeben.');
+          if (!MEMBER_NO_RE.test(mn)) throw bad('Dienstnummer: 2–20 Zeichen (Buchstaben, Ziffern, Bindestrich).');
+          if (get('SELECT 1 x FROM users WHERE member_number = ? AND id != ?', mn, id)) throw conflict('Diese Dienstnummer ist bereits vergeben.');
           run('UPDATE users SET member_number = ?, updated_at = ? WHERE id = ?', mn, now(), id);
         }
         if (b.displayName !== undefined) {
-          if (id !== ctx.user.id) throw forbidden('Namen anderer Mitglieder sind nicht einsehbar und werden hier nicht geändert.');
+          if (id !== ctx.user.id && !ctx.user.perms.has('users.edit')) throw forbidden('Namen anderer Mitglieder ändert nur, wer Benutzer bearbeiten darf.');
           run('UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?', str(b.displayName, 'Anzeigename', { min: 2, max: 60 }), now(), id);
         }
         if (b.roleIds !== undefined) {

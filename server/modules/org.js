@@ -62,8 +62,8 @@ export default {
     ['org.manage', 'Ränge und Abteilungen verwalten'],
   ],
   config: [
-    { key: 'members.number_prefix', group: 'Mitglieder', label: 'Präfix der Mitgliedsnummer', help: 'Wird neuen Nummern vorangestellt. Bereits vergebene Nummern ändern sich nie.', type: 'string', default: 'MDT-', max: 12 },
-    { key: 'members.number_start', group: 'Mitglieder', label: 'Startnummer', help: () => `Niedrigste Nummer, die vergeben wird. Nächste Mitgliedsnummer: ${nextMemberNumberPreview()}`, type: 'number', default: 220, min: 1, max: 999999 },
+    { key: 'members.number_prefix', group: 'Mitglieder', label: 'Präfix der Dienstnummer', help: 'Wird neuen Nummern vorangestellt (leer = reine Zahl). Bereits vergebene Nummern ändern sich nie.', type: 'string', default: '', max: 12 },
+    { key: 'members.number_start', group: 'Mitglieder', label: 'Startnummer', help: () => `Niedrigste Nummer, die vergeben wird. Nächste Dienstnummer: ${nextMemberNumberPreview()}`, type: 'number', default: 1000, min: 1, max: 999999 },
   ],
   init() {
     backfillMemberNumbers();

@@ -8,7 +8,7 @@ import { memberLabel } from '../core/identity.js';
 /**
  * Aktivität & Abmeldung: zeigt, wer im Panel aktiv ist (zuletzt aktiv, aktive Tage) und wer sich abgemeldet hat (Urlaub, Pause). Jedes Mitglied meldet sich
  * selbst für einen Zeitraum ab – wer abgemeldet ist, gilt nicht als inaktiv und fällt nicht auf. Die Übersicht sehen nur Berechtigte (activity.view); sie zeigt
- * ausschließlich Personalnummern. Aktiv zählt, wer das Panel mit entsperrtem Bildschirm geöffnet hat (Herzschlag der Online-Liste) oder sich anmeldet.
+ * ausschließlich Dienstnummern. Aktiv zählt, wer das Panel mit entsperrtem Bildschirm geöffnet hat (Herzschlag der Online-Liste) oder sich anmeldet.
  * Ein Wochenhinweis nennt der Führung die inaktiven Mitglieder. Rechte: activity.absence (eigene Abmeldung) · activity.view (Übersicht) · activity.manage (für andere eintragen/beenden).
  */
 const has = (u, p) => u.isAdmin || u.perms.has(p);

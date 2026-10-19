@@ -11,7 +11,7 @@ import { registerPartnerApp } from '../core/partner-apps.js';
 /**
  * Chat: Kanäle (vom Admin angelegt, optional auf Rollen beschränkt und für externe Partner freigebbar), Privatnachrichten,
  * Nachrichten mit Antworten, Bearbeiten, Löschen, Anpinnen, Zeitstempel, Ungelesen-Zähler und Erwähnungen.
- * Absender erscheinen IMMER nur als Nummer (Mitglieder: Personalnummer, Partner: Partnernummer) – Namen werden nie ausgeliefert.
+ * Absender erscheinen IMMER nur als Nummer (Mitglieder: Dienstnummer, Partner: Partnernummer) – Namen werden nie ausgeliefert.
  *
  * „Betrachter“ (viewer): Mitarbeiter = der Benutzer selbst; externer Partner = { isPartner: true, partner }.
  * Externe Partner erreichen den Chat über die Partner-App „chat“: Privatnachrichten mit Mitgliedern, die das Recht
@@ -238,7 +238,7 @@ export default {
     });
 
     // Privatnachrichten
-    /** Alle aktiven Mitglieder mit Chat-Zugang – ausschließlich als Personalnummer (Anonymität). Mit chat.partners zusätzlich externe Partner (Partnernummer). */
+    /** Alle aktiven Mitglieder mit Chat-Zugang – ausschließlich als Dienstnummer (Anonymität). Mit chat.partners zusätzlich externe Partner (Partnernummer). */
     r.get('/api/chat/people', { perm: 'chat.view' }, (ctx) => ({
       people: all(`SELECT id FROM users WHERE status = 'active' AND id != ? ORDER BY member_number`, ctx.user.id)
         .filter((u) => loadAccess(u.id).perms.has('chat.view')).map((u) => ({ id: u.id, label: labelForUser(u.id, ctx.user.id) })),
@@ -375,7 +375,7 @@ export default {
     r.get('/api/p/chat/dms', P, (ctx) => ({
       dms: all("SELECT * FROM chat_channels WHERE kind = 'dm' AND dm_partner = ?", ctx.partner.id).map((c) => channelDto(c, pv(ctx))).filter((c) => c.lastMessageAt).sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1)),
     }));
-    /** Ansprechpartner: nur Mitglieder mit dem Recht „chat.partners“ – als Personalnummer. */
+    /** Ansprechpartner: nur Mitglieder mit dem Recht „chat.partners“ – als Dienstnummer. */
     r.get('/api/p/chat/people', P, () => ({ people: partnerContacts().map((u) => ({ id: u.id, label: labelForUser(u.id, null) })) }));
     r.get('/api/p/chat/unread', P, (ctx) => {
       const ids = partnerChannelIds(ctx.partner);

@@ -5,7 +5,7 @@ import { can } from '../state.js';
 
 /**
  * Aktivität & Abmeldung: „Meine Abmeldung“ (jeder meldet sich selbst für einen Zeitraum ab) und – mit Berechtigung – die Übersicht über alle Mitglieder
- * (zuletzt aktiv, aktive Tage, Abmeldungen). Nur Personalnummern.
+ * (zuletzt aktiv, aktive Tage, Abmeldungen). Nur Dienstnummern.
  */
 const ST = { active: ['Aktiv', 'b-ok'], absent: ['Abgemeldet', 'b-info'], inactive: ['Inaktiv', 'b-err'], new: ['Neu', 'b-mute'] };
 const fmtDay = (d) => (d ? d.split('-').reverse().join('.') : '–');
@@ -65,7 +65,7 @@ export default async function render(container, ctx) {
   function drawAll() {
     const rows = over.rows, count = (st) => rows.filter((r) => r.status === st).length;
     ctx.setActions(over.canManage ? button('Mitglied abmelden', { icon: 'calendar', onClick: pickMember }) : null);
-    const search = input({ type: 'search', placeholder: 'Personalnummer suchen …', value: filter.q }), sel = select([{ value: '', label: 'Alle Status' }, ...Object.entries(ST).map(([value, [label]]) => ({ value, label }))], filter.status);
+    const search = input({ type: 'search', placeholder: 'Dienstnummer suchen …', value: filter.q }), sel = select([{ value: '', label: 'Alle Status' }, ...Object.entries(ST).map(([value, [label]]) => ({ value, label }))], filter.status);
     search.style.flex = '1'; sel.style.width = '200px'; sel.style.flex = 'none';
     search.addEventListener('input', () => { filter.q = search.value; paintTable(); });
     sel.addEventListener('change', () => { filter.status = sel.value; paintTable(); });

@@ -23,7 +23,7 @@ registerConfig(partnersModule.config);
 registerConfig(vehiclesModule.config);
 registerConfig(mapModule.config);
 registerConfig(warehouseModule.config);
-registerConfig(marketModule.config); // Standardwerte für Mitgliedsnummern (Präfix, Startnummer)
+registerConfig(marketModule.config); // Standardwerte für Dienstnummern (Präfix, Startnummer)
 
 migrate();
 if (!get('SELECT 1 x FROM users')) {

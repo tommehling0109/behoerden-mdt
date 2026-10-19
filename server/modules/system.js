@@ -71,8 +71,8 @@ export default {
     // Für alle deaktivierte Apps (IDs). Verwaltet über Konfiguration → Apps; die Verwaltungs-Apps (Konfiguration, Benutzer, Rollen …) lassen sich nicht abschalten.
     { key: 'system.disabled_apps', group: 'Apps', label: 'Deaktivierte Apps', type: 'json', default: [], hidden: true, public: true, perm: 'system.apps',
       validate: (v) => Array.isArray(v) && v.length <= 30 && new Set(v).size === v.length && v.every((x) => typeof x === 'string' && Object.hasOwn(DISABLEABLE_APPS, x)) },
-    { key: 'system.name', group: 'Allgemein', label: 'Systemname', help: 'Wird im Header, Login und Browser-Tab angezeigt.', type: 'string', default: 'MDT', max: 40, public: true },
-    { key: 'system.subtitle', group: 'Allgemein', label: 'Untertitel', help: 'Zweite Zeile unter dem Systemnamen.', type: 'string', default: 'Mobile Data Terminal', max: 60, public: true },
+    { key: 'system.name', group: 'Allgemein', label: 'Systemname', help: 'Wird im Header, Login und Browser-Tab angezeigt.', type: 'string', default: 'San Andreas MDT', max: 40, public: true },
+    { key: 'system.subtitle', group: 'Allgemein', label: 'Untertitel', help: 'Zweite Zeile unter dem Systemnamen.', type: 'string', default: 'Behörden-Informationssystem des Staates', max: 60, public: true },
     { key: 'ui.accent', group: 'Darstellung', label: 'Akzentfarbe', help: 'Hauptfarbe für Buttons, Markierungen und Glow-Effekte.', type: 'color', default: '#5b82b8', public: true },
     { key: 'ui.accent2', group: 'Darstellung', label: 'Zweite Farbe', help: 'Farbverlauf des Hintergrunds und Akzente (Leuchten).', type: 'color', default: '#8da2bd', public: true },
     { key: 'ui.theme', group: 'Darstellung', label: 'Designvorlage', help: 'Grundfarbwelt der Oberfläche (Flächen, Rahmen, Hintergrund).', type: 'select', default: 'anthracite', public: true,

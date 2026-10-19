@@ -167,7 +167,7 @@ export default async function render(container, ctx) {
         h('div', { class: 'form-row' }, field('Standort', loc), field('Stellplatz', slot)),
         h('div', { class: 'form-row' }, field('Position X (Spielkoordinate)', lx), field('Position Y', ly)), h('div', { class: 'help' }, 'Mit Koordinaten erscheint das Fahrzeug auf der Karte (Fahrzeug-Ebene).')),
       h('div', { class: 'sep' }), h('div', { class: 'label', style: { margin: '0 0 8px' } }, 'Zuordnung'),
-      h('div', { class: 'form-row' }, field('Abteilung', dept), member ? field('Zugewiesen an (Personalnummer)', member) : field('Zugewiesen an', h('div', { class: 'muted' }, 'Dafür fehlt das Recht „zuweisen“.'))),
+      h('div', { class: 'form-row' }, field('Abteilung', dept), member ? field('Zugewiesen an (Dienstnummer)', member) : field('Zugewiesen an', h('div', { class: 'muted' }, 'Dafür fehlt das Recht „zuweisen“.'))),
       field('Notizen', notes), active);
     const footer = [];
     if (v && canDelete) footer.push(button('Löschen', { variant: 'danger', icon: 'trash', onClick: async () => {

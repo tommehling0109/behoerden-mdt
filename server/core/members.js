@@ -13,7 +13,7 @@ function peekSeq() {
 export const nextMemberNumberPreview = () => `${getConfig('members.number_prefix') ?? ''}${peekSeq()}`;
 
 /**
- * Vergibt (einmalig) die nächste Mitgliedsnummer. Läuft in einer IMMEDIATE-Transaktion, zusätzlich sichert der
+ * Vergibt (einmalig) die nächste Dienstnummer. Läuft in einer IMMEDIATE-Transaktion, zusätzlich sichert der
  * UNIQUE-Index auf users.member_number die Eindeutigkeit auf Datenbankebene ab. Bereits vergebene Nummern ändern sich nie.
  */
 export function assignMemberNumber(userId) {

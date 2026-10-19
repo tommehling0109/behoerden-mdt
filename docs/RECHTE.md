@@ -4,11 +4,11 @@
 
 ## Grundregeln
 
-- **Superadmin**: feste Rolle, entsteht bei der Einrichtung (erster Benutzer), **nicht veränderbar und nicht vergebbar**. Hat automatisch **alle** Rechte und darf alles endgültig löschen (jeder Status) sowie das Panel zurücksetzen. Nur der Superadmin ändert Personalnummern.
+- **Superadmin**: feste Rolle, entsteht bei der Einrichtung (erster Benutzer), **nicht veränderbar und nicht vergebbar**. Hat automatisch **alle** Rechte und darf alles endgültig löschen (jeder Status) sowie das Panel zurücksetzen. Nur der Superadmin ändert Dienstnummern.
 - **Administrator-Rollen** (`is_admin`): haben automatisch alle fachlichen Rechte, dürfen aber nur von Administratoren/Superadmins vergeben und bearbeitet werden. Superadmins dürfen nur von Superadmins verwaltet werden.
 - Alle anderen: ausschließlich die Rechte aus **Rolle(n)**, **Rang** und **direkten Rechten**. Rechte vergeben darf nur, wer sie selbst besitzt (keine Rechteausweitung).
 - Mehrere Rechte bei einer Route (`a | b`) bedeuten: **eines davon genügt** (z. B. Lesezugriff für verschiedene Rollen). Schreibende Routen verlangen immer genau das Recht der Aktion.
-- Namen von Mitgliedern sieht man nur bei sich selbst, als Superadmin und bei Mitgliedern **unterhalb** der eigenen Hierarchie (übergeordneter Rang / Vorgesetzten-Kette); sonst nur die Personalnummer.
+- Namen von Mitgliedern sieht man nur bei sich selbst, als Superadmin und bei Mitgliedern **unterhalb** der eigenen Hierarchie (übergeordneter Rang / Vorgesetzten-Kette); sonst nur die Dienstnummer.
 - Statistik: `stats.view` öffnet die App, jeder Abschnitt erscheint zusätzlich nur mit dem Ansichtsrecht des jeweiligen Bereichs.
 
 ## Rechte (99)

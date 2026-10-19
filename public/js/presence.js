@@ -7,7 +7,7 @@ import { subscribe } from './realtime.js';
 
 /**
  * Online-Liste: meldet diese Seite regelmäßig als „online“ (und ob der Sperrbildschirm aktiv ist) und zeigt rechts auf dem Desktop, welche
- * Mitglieder gerade online sind – nur Personalnummer und Rang. Gesperrte Bildschirme erscheinen grau mit „Sperrbildschirm“. Nur Mitarbeiter.
+ * Mitglieder gerade online sind – nur Dienstnummer und Rang. Gesperrte Bildschirme erscheinen grau mit „Sperrbildschirm“. Nur Mitarbeiter.
  */
 const tabId = Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4);
 let beat = null;

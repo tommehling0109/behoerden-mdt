@@ -1,3 +1,4 @@
+import { memberLabel } from '../core/identity.js';
 import { watchLoginNotice } from './watchlist.js';
 import { touchActivity } from './activity.js';
 import { all, get, run, now } from '../core/db.js';
@@ -40,7 +41,7 @@ export default {
       watchLoginNotice(row.id);
       touchActivity(row.id);
       const fresh = loadUser(row.id);
-      audit({ user: fresh, ip: ctx.ip }, { action: 'auth.login', module: 'auth', targetType: 'user', targetId: row.id, targetLabel: row.member_number ?? `Mitglied #${row.id}` });
+      audit({ user: fresh, ip: ctx.ip }, { action: 'auth.login', module: 'auth', targetType: 'user', targetId: row.id, targetLabel: memberLabel(row) });
       return { user: publicUser(fresh) };
     });
 

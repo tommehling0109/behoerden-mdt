@@ -11,7 +11,7 @@ import { registerWidget } from './dashboard.js';
 
 /**
  * Fahrzeugverwaltung. Rechte sind fein getrennt: ansehen (nur lesen), Standort sehen, anlegen, bearbeiten, löschen, zuweisen.
- * Zugewiesene Mitglieder erscheinen ausschließlich als Personalnummer (Anonymität).
+ * Zugewiesene Mitglieder erscheinen ausschließlich als Dienstnummer (Anonymität).
  */
 registerLookup({
   key: 'vehicles.fuel', module: 'Fahrzeuge', label: 'Kraftstoff-Arten', description: 'Feste Arten (Diesel, Benzin, Strom) – Beschriftung und Farbe sind anpassbar.',

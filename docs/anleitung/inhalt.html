@@ -16,10 +16,10 @@
 
 <h2>Grundprinzipien</h2>
 <ul>
-<li><b>Anonymität:</b> Mitglieder erscheinen überall nur als <b>Personalnummer</b> (z. B. <code>MDT-221</code>). Den echten Namen sieht man nur bei sich selbst, als Superadmin und bei Mitgliedern, die in der Hierarchie <i>unter</i> einem stehen.</li>
+<li><b>Anonymität:</b> Mitglieder erscheinen überall nur als <b>Dienstnummer</b> (z. B. <code>MDT-221</code>). Den echten Namen sieht man nur bei sich selbst, als Superadmin und bei Mitgliedern, die in der Hierarchie <i>unter</i> einem stehen.</li>
 <li><b>Genaue Rechte:</b> Jede Funktion hat ein eigenes Recht (insgesamt 71). Wer etwas nicht darf, sieht den Eintrag meist gar nicht; der Server prüft jede Aktion zusätzlich selbst.</li>
 <li><b>Echtzeit:</b> Änderungen erscheinen bei allen offenen Fenstern sofort. Der grüne Punkt in der Kopfleiste zeigt die Live-Verbindung.</li>
-<li><b>Nachvollziehbarkeit:</b> Jede wichtige Aktion landet im Audit-Log – ebenfalls nur mit Personalnummer.</li>
+<li><b>Nachvollziehbarkeit:</b> Jede wichtige Aktion landet im Audit-Log – ebenfalls nur mit Dienstnummer.</li>
 <li><b>Nichts geht verloren:</b> Gelöscht wird erst nach Bestätigung; der Superadmin kann alles endgültig löschen.</li>
 </ul>
 
@@ -32,7 +32,7 @@
 <tr><td>Rolle</td><td>Bündel von Rechten. Zu jedem Standard-Rang gibt es eine passende Rolle mit wachsenden Rechten.</td></tr>
 <tr><td>Recht</td><td>Eine einzelne Erlaubnis, z. B. <code>warehouse.stock</code> (Lager buchen).</td></tr>
 <tr><td>Abteilung</td><td>Fachbereich (z. B. Führung, Operativ, Legal, Finance, Logistics).</td></tr>
-<tr><td>Personalnummer</td><td>Eindeutige Kennung eines Mitglieds, z. B. <code>MDT-221</code>. Nur der Superadmin kann sie ändern.</td></tr>
+<tr><td>Dienstnummer</td><td>Eindeutige Kennung eines Mitglieds, z. B. <code>MDT-221</code>. Nur der Superadmin kann sie ändern.</td></tr>
 <tr><td>Externer Zugang</td><td>Zugang für einen Geschäftspartner (Lieferant oder Ankäufer) per Link und Code.</td></tr>
 <tr><td>Slot / Stapel</td><td>Lagereinheiten wie im Server-Inventar: Ein Stapel belegt Slots und fasst eine Höchstmenge.</td></tr>
 </table>
@@ -87,7 +87,7 @@
 <p>Die gleichen Einstellungen gibt es auch im Partner-Portal für externe Zugänge.</p>
 
 <h2>Konto und Sicherheit</h2>
-<p>Ein Klick auf euren Namen oben rechts öffnet „Konto &amp; Sicherheit“. Dort ladet ihr ein <b>Profilbild</b> hoch (wird quadratisch zugeschnitten; PNG, JPEG oder WebP), ändert euer <b>Passwort</b> und seht eure aktiven <b>Sitzungen</b> – mit einem Klick beendet ihr alle anderen Sitzungen (überall abmelden). Das Bild erscheint in der Kopfleiste, in Listen und im Chat, immer neben der Personalnummer.</p>
+<p>Ein Klick auf euren Namen oben rechts öffnet „Konto &amp; Sicherheit“. Dort ladet ihr ein <b>Profilbild</b> hoch (wird quadratisch zugeschnitten; PNG, JPEG oder WebP), ändert euer <b>Passwort</b> und seht eure aktiven <b>Sitzungen</b> – mit einem Klick beendet ihr alle anderen Sitzungen (überall abmelden). Das Bild erscheint in der Kopfleiste, in Listen und im Chat, immer neben der Dienstnummer.</p>
 {{fig:08-konto|Konto &amp; Sicherheit}}
 
 <h2>Bildschirm sperren</h2>
@@ -162,7 +162,7 @@
 
 <h2>Fahrzeuge</h2>
 <div class="rights"><b>Rechte:</b> <code>vehicles.view</code>, <code>vehicles.view_location</code>, <code>vehicles.create</code>, <code>vehicles.edit</code>, <code>vehicles.delete</code>, <code>vehicles.assign</code></div>
-<p>Der Fuhrpark mit Name, Kennzeichen, Fahrgestellnummer, Klasse, Farbe, Sitzen, Kraftstoff (Diesel, Benzin, Strom), Tank- bzw. Akkustand, Zustand, Kilometerstand, Hauptuntersuchung, Standort (Text, Stellplatz, Koordinaten), Abteilung, zugewiesenem Mitglied (nur Personalnummer) und Bild. Jedes Fahrzeug bekommt eine Nummer <code>MDT-V-…</code> und einen Änderungsverlauf. Oben filtert ihr nach Zustand und Kraftstoff, „Nur meine“ zeigt eure zugewiesenen Fahrzeuge.</p>
+<p>Der Fuhrpark mit Name, Kennzeichen, Fahrgestellnummer, Klasse, Farbe, Sitzen, Kraftstoff (Diesel, Benzin, Strom), Tank- bzw. Akkustand, Zustand, Kilometerstand, Hauptuntersuchung, Standort (Text, Stellplatz, Koordinaten), Abteilung, zugewiesenem Mitglied (nur Dienstnummer) und Bild. Jedes Fahrzeug bekommt eine Nummer <code>MDT-V-…</code> und einen Änderungsverlauf. Oben filtert ihr nach Zustand und Kraftstoff, „Nur meine“ zeigt eure zugewiesenen Fahrzeuge.</p>
 {{fig:22-fahrzeuge|Der Fuhrpark mit Zustandsfiltern}}
 {{fig:23-fahrzeug-neu|Ein Fahrzeug anlegen}}
 <p>Die Zustände und Fahrzeugklassen sind frei erweiterbar (Administration → Kategorien &amp; Status).</p>
@@ -222,7 +222,7 @@
 <li><b>Nachrichten:</b> <kbd>Enter</kbd> sendet, <kbd>Shift</kbd>+<kbd>Enter</kbd> macht eine neue Zeile. Antworten, Bearbeiten und Löschen eigener Nachrichten sind möglich; fremde Nachrichten löscht nur, wer <code>chat.moderate</code> hat.</li>
 <li><b>Erwähnungen:</b> <code>@MDT-220</code> benachrichtigt die Person.</li>
 <li><b>Anpinnen:</b> Wichtige Nachrichten lassen sich oben festhalten (<code>chat.pin</code>).</li>
-<li><b>Privatnachrichten:</b> Knopf <b>Neue Privatnachricht</b> links, Kontakt aus der Liste wählen (nur Personalnummern; ihr könnt euch nicht selbst schreiben). Privatchats sind nur für die beiden Beteiligten lesbar – auch Admins sehen sie nicht.</li>
+<li><b>Privatnachrichten:</b> Knopf <b>Neue Privatnachricht</b> links, Kontakt aus der Liste wählen (nur Dienstnummern; ihr könnt euch nicht selbst schreiben). Privatchats sind nur für die beiden Beteiligten lesbar – auch Admins sehen sie nicht.</li>
 <li><b>Kanäle verwalten:</b> Kanäle erstellen, Farbe und Beschreibung wählen, auf Rollen beschränken und für externe Partner freigeben.</li>
 <li><b>Ungelesen:</b> Zähler am Kanal und am Dock-Symbol.</li>
 </ul>
@@ -246,11 +246,11 @@
 
 <h2>Benutzer</h2>
 <div class="rights"><b>Rechte:</b> <code>users.view</code>, <code>users.approve</code>, <code>users.create</code>, <code>users.edit</code>, <code>users.delete</code>, <code>users.password_reset</code>, <code>users.personnel_view</code>, <code>users.personnel_edit</code>, <code>users.avatar_edit</code>, <code>users.avatar_remove</code></div>
-<p>Die Benutzerverwaltung zeigt alle Mitglieder mit Personalnummer, Rang/Abteilung, Status, Rollen und letzter Anmeldung. Reiter filtern nach <i>Ausstehend, Aktiv, Gesperrt, Abgelehnt</i>.</p>
+<p>Die Benutzerverwaltung zeigt alle Mitglieder mit Dienstnummer, Rang/Abteilung, Status, Rollen und letzter Anmeldung. Reiter filtern nach <i>Ausstehend, Aktiv, Gesperrt, Abgelehnt</i>.</p>
 {{fig:36-benutzer|Die Benutzerliste}}
 <ul>
 <li><b>Freischalten:</b> Ausstehende Registrierungen werden freigeschaltet (mit Rolle) oder abgelehnt.</li>
-<li><b>Benutzer anlegen:</b> Anzeigename, Benutzername, Passwort, Rang, Abteilung und die <b>Personalakte</b> (siehe unten). Den <b>Personalnummer</b> vergibt automatisch die nächste Nummer; nur der Superadmin darf sie ändern oder beim Anlegen selbst festlegen.</li>
+<li><b>Benutzer anlegen:</b> Anzeigename, Benutzername, Passwort, Rang, Abteilung und die <b>Personalakte</b> (siehe unten). Den <b>Dienstnummer</b> vergibt automatisch die nächste Nummer; nur der Superadmin darf sie ändern oder beim Anlegen selbst festlegen.</li>
 <li><b>Sperren / Entsperren</b> und Passwort zurücksetzen (<code>users.password_reset</code>).</li>
 <li><b>Rollen und direkte Rechte:</b> Rechte ergeben sich aus Rolle(n), Rang und direkten Rechten. Rechte vergeben darf nur, wer sie selbst besitzt.</li>
 </ul>
@@ -272,7 +272,7 @@
 
 <h2>Organisation</h2>
 <div class="rights"><b>Rechte:</b> <code>org.view</code>, <code>org.manage</code></div>
-<p>Die Organisation besteht aus <b>Rängen</b> und <b>Abteilungen</b>. Jeder Rang hat einen übergeordneten Rang (Vorgesetzter); daraus ergibt sich die <b>Hierarchie</b>. Sie entscheidet, wessen Namen ihr sehen dürft: Echte Namen sehen Superadmin, jeder selbst und alle, die in der Kette <i>über</i> einem Mitglied stehen – alle anderen nur die Personalnummer.</p>
+<p>Die Organisation besteht aus <b>Rängen</b> und <b>Abteilungen</b>. Jeder Rang hat einen übergeordneten Rang (Vorgesetzter); daraus ergibt sich die <b>Hierarchie</b>. Sie entscheidet, wessen Namen ihr sehen dürft: Echte Namen sehen Superadmin, jeder selbst und alle, die in der Kette <i>über</i> einem Mitglied stehen – alle anderen nur die Dienstnummer.</p>
 {{fig:39-organisation|Die Rang-Hierarchie}}
 {{fig:40-organisation-abt|Abteilungen mit Farbe und Mitgliederzahl}}
 
@@ -295,7 +295,7 @@
 
 <h2>Audit-Log</h2>
 <div class="rights"><b>Rechte:</b> <code>audit.view</code>, <code>audit.export</code></div>
-<p>Das Audit-Log protokolliert alle wichtigen Aktionen: Anmeldungen, Änderungen an Benutzern und Rechten, Börse, Lager, Kredit, Konfigurationsänderungen, Ticket- und Hack-Ereignisse. Es zeigt Zeitpunkt, Handelnden (nur Personalnummer), Aktion, Modul und Ziel. Filter nach Modul, Benutzer, Zeitraum und Suchbegriff; Export als CSV mit <code>audit.export</code>.</p>
+<p>Das Audit-Log protokolliert alle wichtigen Aktionen: Anmeldungen, Änderungen an Benutzern und Rechten, Börse, Lager, Kredit, Konfigurationsänderungen, Ticket- und Hack-Ereignisse. Es zeigt Zeitpunkt, Handelnden (nur Dienstnummer), Aktion, Modul und Ziel. Filter nach Modul, Benutzer, Zeitraum und Suchbegriff; Export als CSV mit <code>audit.export</code>.</p>
 {{fig:47-audit|Das Audit-Log}}
 
 <h1>Konfiguration und Betrieb</h1>
@@ -333,7 +333,7 @@
 <h1>Externe Zugänge im Detail</h1>
 
 <h2>Das Partner-Portal</h2>
-<p>Ein Partner öffnet seinen persönlichen Link, gibt den Zugangscode ein und landet auf einem eigenen Desktop – mit denselben Bedienelementen wie ihr, aber nur mit den freigeschalteten Apps. Namen sieht ein Partner nie; Teammitglieder erscheinen als Personalnummer.</p>
+<p>Ein Partner öffnet seinen persönlichen Link, gibt den Zugangscode ein und landet auf einem eigenen Desktop – mit denselben Bedienelementen wie ihr, aber nur mit den freigeschalteten Apps. Namen sieht ein Partner nie; Teammitglieder erscheinen als Dienstnummer.</p>
 {{fig:51-partner-login|Anmeldung im Partner-Portal per Zugangscode}}
 {{fig:52-partner-portal|Der Partner-Desktop mit den freigeschalteten Apps}}
 <ul>

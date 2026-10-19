@@ -96,7 +96,7 @@ export default async function render(container, ctx) {
     let opts, cur = edit ? watch.entries.find((x) => x.userId === edit) : null;
     try { opts = await api.get('/api/watchlist/options'); } catch (e) { return toast(e.message, 'err'); }
     if (edit && !cur) { try { cur = (await api.get('/api/watchlist')).entries.find((x) => x.userId === edit); } catch { /* egal */ } }
-    const err = h('div'), q = input({ type: 'search', placeholder: 'Personalnummer suchen …' });
+    const err = h('div'), q = input({ type: 'search', placeholder: 'Dienstnummer suchen …' });
     const pick = select([{ value: '', label: '— Person wählen —' }, ...opts.candidates.map((c) => ({ value: c.id, label: `${c.label} (${{ active: 'aktiv', blocked: 'gesperrt', pending: 'ausstehend', rejected: 'abgelehnt' }[c.status] ?? c.status})` }))], userId ?? '');
     q.addEventListener('input', () => { const f = q.value.trim().toLowerCase(); for (const o of pick.options) o.hidden = !!f && !!o.value && !o.textContent.toLowerCase().includes(f); });
     const reason = h('textarea', { class: 'textarea', rows: 4, maxLength: 600, placeholder: 'Warum wird die Person beobachtet? (z. B. Ex-Mitglied, Verdacht auf Weitergabe von Informationen …)' }, cur?.reason ?? '');
@@ -194,7 +194,7 @@ export default async function render(container, ctx) {
       catch (e) { toast(e.message || 'Das Bild konnte nicht verarbeitet werden.', 'err'); }
       avatarFile.value = '';
     });
-    const noInput = state.user.isSuperadmin ? input({ value: user?.memberNumber ?? '', maxLength: 20, placeholder: user ? 'Personalnummer' : 'leer = automatisch die nächste Nummer', autocomplete: 'off' }) : null;
+    const noInput = (state.user.isSuperadmin || can('users.badge')) ? input({ value: user?.memberNumber ?? '', maxLength: 20, placeholder: user ? 'Dienstnummer' : 'leer = automatisch die nächste Nummer', autocomplete: 'off' }) : null;
     if (noInput) noInput.addEventListener('input', () => { noInput.value = noInput.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); });
     const personNew = !user && can('users.personnel_edit') ? personFields() : null;
     const extras = personNew ? extraFilesPicker() : null;
@@ -204,7 +204,7 @@ export default async function render(container, ctx) {
         user.watch.canEdit && button('Bearbeiten', { size: 'sm', onClick: () => { m.close(); watchDialog({ edit: user.id }); } })),
       user && !user.watch && !user.isSelf && can('users.edit') && h('div', { class: 'row', style: { margin: '0 0 12px' } }, button('Auf die Watchlist setzen', { size: 'sm', variant: 'danger', icon: 'eye', onClick: () => { m.close(); watchDialog({ userId: user.id }); } })),
       user && h('div', { class: 'member-card' }, userAvatar(user, 'lg'),
-        h('div', { class: 'grow' }, h('div', { class: 'mc-name' }, user.displayName), h('div', { class: 'mc-sub' }, user.username ? `@${user.username}` : (user.memberNumber ? 'Personalnummer' : '')),
+        h('div', { class: 'grow' }, h('div', { class: 'mc-name' }, user.displayName), h('div', { class: 'mc-sub' }, user.username ? `@${user.username}` : (user.memberNumber ? 'Dienstnummer' : '')),
           h('div', { class: 'mc-meta' }, statusBadge(user.status), rankBadge(user.rank), deptBadge(user.department))),
         memberNo(user.memberNumber, true)),
       user && !user.isSelf && (can('users.avatar_edit') || (user.avatarUrl && can('users.avatar_remove'))) && h('div', { class: 'row', style: { margin: '0 0 14px' } }, avatarFile,
@@ -213,17 +213,15 @@ export default async function render(container, ctx) {
           if (!await confirmDialog({ title: 'Profilbild entfernen?', message: 'Das Profilbild dieses Mitglieds wird gelöscht. Es kann ein neues hochladen.', confirmLabel: 'Entfernen' })) return;
           try { await api.del(`/api/users/${user.id}/avatar`); toast('Profilbild entfernt.'); m.close(); load(true); } catch (e) { toast(e.message, 'err'); }
         } })),
-      (!user || user.isSelf) ? h('div', { class: 'form-row' }, field('Anzeigename', dn), field('Benutzername', un))
-        : user.nameVisible ? note(`Du siehst den Namen, weil dieses Mitglied in der Hierarchie unter dir steht (oder du Superadmin bist): ${user.displayName}${user.username ? ' (@' + user.username + ')' : ''}.`, 'shield')
-          : note('Namen von Mitgliedern auf gleicher oder höherer Ebene werden aus Datenschutzgründen nicht angezeigt – die Identifikation läuft über die Personalnummer.', 'shield'),
-      noInput && field('Personalnummer', noInput, { help: 'Nur der Superadmin kann Personalnummern ändern oder vergeben (eindeutig, z. B. MDT-221).' }),
+      h('div', { class: 'form-row' }, field('Name (Vor- und Nachname)', dn), field('Benutzername', un)),
+      noInput && field('Dienstnummer', noInput, { help: 'Eindeutig, z. B. 1042 oder LSPD-1042. Vergeben und ändern dürfen Superadmin und Mitglieder mit dem Recht „Dienstnummern vergeben“.' }),
       h('div', { class: 'form-row' }, field('Rang', rankSel), field('Abteilung', deptSel)),
       supSel && field('Vorgesetzter', supSel, { help: 'Direkter Vorgesetzter dieses Mitglieds.' }),
       !user && field('Passwort', pw),
       !user && h('div', null, h('div', { class: 'sep' }), h('div', { class: 'label', style: { marginBottom: '6px' } }, 'Persönliche Angaben (Personalakte)'),
         personNew ? [personNew.el, PERS_DOCS.map(([k, label]) => field(label, docPickers[k].el)), extras.el]
           : note('Vorname, Nachname, Straße, Postal Code, Telefonnummer, UMail, Kontonummer und die Dokumente (Ausweis, Führerschein, Waffenschein, Führungszeugnis) kannst du nur erfassen, wenn dir das Recht „users.personnel_edit“ zugewiesen ist (Rollen & Rechte → Rolle bearbeiten, oder beim Benutzer unter „Direkte Rechte“).', 'alert')),
-      !user && h('div', { class: 'help' }, 'Der Benutzer wird sofort aktiv geschaltet und erhält automatisch die nächste Mitgliedsnummer.'),
+      !user && h('div', { class: 'help' }, 'Der Benutzer wird sofort aktiv geschaltet und erhält automatisch die nächste Dienstnummer.'),
       user && h('dl', { class: 'details-dl' },
         h('dt', null, 'Erstellt'), h('dd', null, fmtDateTime(user.createdAt)),
         h('dt', null, 'Letzte Anmeldung'), h('dd', null, user.lastLoginAt ? fmtDateTime(user.lastLoginAt) : 'nie'),

@@ -40,7 +40,7 @@ export function initLock({ who, secretLabel, verify, onLogout, scope }) {
   }
 
   function draw() {
-    // Nur die Personalnummer (MDT-…) – nie ein Name (Anonymität)
+    // Name und Dienstnummer des angemeldeten Mitglieds
     const id = who.label ?? 'Mitglied';
     const lsTime = h('div', { class: 'ls-time' }), lsDate = h('div', { class: 'ls-date' });
     const clock = h('div', { class: 'ls-clock' }, lsTime, lsDate);

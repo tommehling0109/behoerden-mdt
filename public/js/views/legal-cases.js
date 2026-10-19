@@ -258,7 +258,7 @@ export default async function renderCases(host, ctx, { setActions }) {
 
   // ═════════ Beteiligte auswählen / neu anlegen ═════════
   function partyPicker(onPick) {
-    const q = input({ placeholder: 'Suchen: Mitglied (Personalnummer), Externer Zugang, Firma, Kontakt …' }), res = h('div');
+    const q = input({ placeholder: 'Suchen: Mitglied (Dienstnummer), Externer Zugang, Firma, Kontakt …' }), res = h('div');
     const KIND_ICON = { user: 'users', partner: 'link', company: 'storage', contact_person: 'users', contact_org: 'storage' };
     const search = debounce(async () => {
       try { const { results } = await api.get(`/api/legal/cases/parties/search?q=${encodeURIComponent(q.value)}`); mount(res, results.length ? results.map((x) => h('div', { class: 'list-row', style: { cursor: 'pointer' }, onclick: () => onPick(x) }, h('div', { class: 'dot-icon' }, icon(KIND_ICON[x.kind])), h('div', { class: 'grow' }, h('div', { class: 't' }, x.name), h('div', { class: 's' }, x.sub)), button('Wählen', { size: 'sm' }))) : h('div', { class: 'muted', style: { padding: '8px 0' } }, 'Nichts gefunden – unten kannst du die Person neu erfassen.')); } catch (e) { mount(res, h('div', { class: 'muted' }, e.message)); }

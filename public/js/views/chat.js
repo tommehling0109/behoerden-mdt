@@ -85,7 +85,7 @@ export async function chatApp(container, ctx, o = {}) {
         const head = p.group !== lastGroup && (people.some((x) => x.group !== p.group)) ? h('div', { class: 'chat-side-title' }, p.group) : null;
         lastGroup = p.group;
         return [head, b].filter(Boolean);
-      }) : empty('Niemand gefunden', people.length ? 'Prüfe die Personalnummer.' : 'Es gibt noch keine weiteren Mitglieder mit Chat-Zugang.', 'users'));
+      }) : empty('Niemand gefunden', people.length ? 'Prüfe die Dienstnummer.' : 'Es gibt noch keine weiteren Mitglieder mit Chat-Zugang.', 'users'));
     };
     q.addEventListener('input', draw);
     const m = openModal({ title: 'Neue Privatnachricht', body: h('div', null, h('div', { class: 'input-icon' }, icon('search'), q), h('div', { style: { height: '10px' } }), list), footer: [button('Abbrechen', { onClick: () => m.close() })] });

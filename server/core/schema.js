@@ -75,7 +75,7 @@ export const SCHEMA_MIGRATIONS = [
   CREATE INDEX idx_audit_ts ON audit_log(ts DESC);
   CREATE INDEX idx_audit_module ON audit_log(module);
   `,
-  /* v2 – Organisation: Mitgliedsnummern, Ränge, Abteilungen + Verknüpfungs-/Integrationsgrundlagen */ `
+  /* v2 – Organisation: Dienstnummern, Ränge, Abteilungen + Verknüpfungs-/Integrationsgrundlagen */ `
   CREATE TABLE departments (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL UNIQUE COLLATE NOCASE,

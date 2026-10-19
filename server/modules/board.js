@@ -7,7 +7,7 @@ import { publish } from '../core/realtime.js';
 
 /**
  * Schwarzes Brett: Ankündigungen, die direkt auf dem Desktop aller Mitglieder stehen (keine eigene App, nicht für externe Partner).
- * Sehen: „board.view“. Anlegen, bearbeiten, anpinnen, entfernen: „board.manage“. Verfasser erscheinen nur als Personalnummer.
+ * Sehen: „board.view“. Anlegen, bearbeiten, anpinnen, entfernen: „board.manage“. Verfasser erscheinen nur als Dienstnummer.
  */
 const LEVELS = ['info', 'important', 'urgent', 'success'];
 const AUDIENCES = ['all', 'internal', 'external']; // Ticker: alle, nur Mitglieder, nur Externe

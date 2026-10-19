@@ -9,7 +9,7 @@ import { notify, staffWith } from '../core/notifications.js';
 /**
  * „Hack“-Zugang für die Exekutive (Rollenspiel-Funktion): ein dauerhafter, geheimer Link (/x/<Schlüssel>) ohne Anmeldung und OHNE jede Kennzeichnung
  * des Systems (kein Name, kein Logo). Dahinter vier Minigames; wer alle besteht, bekommt zufällige, bewusst harmlose Schnipsel aus dem System
- * (Personalnummern, Partnernummern, Teilbestände einzelner Lager, Fahrzeugkennzeichen, Geschäftsnummern) – niemals Klarnamen, Telefonnummern,
+ * (Dienstnummern, Partnernummern, Teilbestände einzelner Lager, Fahrzeugkennzeichen, Geschäftsnummern) – niemals Klarnamen, Telefonnummern,
  * Personalakten oder sonstige sensible Daten. Danach gilt eine gemeinsame Sperrzeit (Cooldown) für den Link.
  *
  * Die Lösungen liegen ausschließlich auf dem Server (Sitzung im Speicher); der Browser bekommt nur die Aufgaben.
@@ -139,7 +139,7 @@ function makeHint(st) {
 
 // ── Beute: harmlose Schnipsel, nur ausdrücklich ausgewählte Spalten (keine Namen, Telefonnummern, Akten, Preise) ──
 const SNIPPETS = [
-  ['personal', () => { // Personalnummern (nur Kennung + Rang)
+  ['personal', () => { // Dienstnummern (nur Kennung + Rang)
     const rows = all("SELECT u.member_number n, r.name rank FROM users u LEFT JOIN ranks r ON r.id = u.rank_id WHERE u.status = 'active' AND u.member_number IS NOT NULL ORDER BY RANDOM() LIMIT 3");
     return rows.length ? { kind: 'Personal', title: 'Personalkennungen', lines: rows.map((x) => `${x.n}${x.rank ? `  ·  ${x.rank}` : ''}`) } : null;
   }],

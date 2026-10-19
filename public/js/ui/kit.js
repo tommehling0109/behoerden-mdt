@@ -32,7 +32,7 @@ export const levelBadge = (level, { label = true } = {}) => (level ? h('span', {
 export const badge = (text, cls = 'b-info', dot = true) => h('span', { class: `badge ${cls} ${dot ? '' : 'no-dot'}` }, text);
 export const rankBadge = (r) => (r ? h('span', { class: 'badge no-dot rank', style: { '--c': r.color } }, r.name) : null);
 export const deptBadge = (d) => (d ? h('span', { class: 'badge dept', style: { '--c': d.color } }, d.name) : null);
-/** Mitgliedsnummer – prominent als Kennung (big = große Darstellung in Profilen). */
+/** Dienstnummer – prominent als Kennung (big = große Darstellung in Profilen). */
 export const memberNo = (n, big = false) => h('span', { class: `member-no ${big ? 'big' : ''} ${n ? '' : 'none'}` }, n ?? 'noch keine');
 export const roleChip = (r) => h('span', { class: 'badge no-dot', style: { '--c': r.color } }, r.name);
 

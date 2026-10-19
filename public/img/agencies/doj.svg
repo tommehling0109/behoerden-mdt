@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" fill="none">
+  <path d="M100 8 L184 36 V118 C184 172 146 210 100 232 C54 210 16 172 16 118 V36 Z" fill="#7c3aed" stroke="#f4f6fa" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M100 24 L170 47 V118 C170 163 140 196 100 215 C60 196 30 163 30 118 V47 Z" stroke="#f4f6fa" stroke-opacity=".55" stroke-width="3"/>
+  <polygon points="100.0,52.0 106.4,69.2 124.7,70.0 110.4,81.4 115.3,99.0 100.0,88.9 84.7,99.0 89.6,81.4 75.3,70.0 93.6,69.2" fill="#f4f6fa"/>
+  <text x="100" y="146" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="50" font-weight="800" letter-spacing="2" fill="#f4f6fa">DOJ</text>
+  <rect x="60" y="164" width="80" height="5" rx="2.5" fill="#f4f6fa" opacity=".7"/>
+</svg>

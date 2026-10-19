@@ -48,7 +48,7 @@ Die Problemleiste erscheint nur, wenn es akute Probleme gibt – zum Beispiel be
 
 Ein Klick auf einen Eintrag öffnet die passende App. Die Leiste lässt sich zuklappen.`),
     S('Online-Liste', `
-Zeigt, wer gerade das Panel geöffnet hat – mit Personalnummer und Rang (bei externen Partnern mit Zugangsnummer und dem Kennzeichen „Extern“). Wer im **Sperrbildschirm** ist, erscheint grau. Du selbst stehst mit „(Du)“ in der Liste.
+Zeigt, wer gerade das Panel geöffnet hat – mit Dienstnummer und Rang (bei externen Partnern mit Zugangsnummer und dem Kennzeichen „Extern“). Wer im **Sperrbildschirm** ist, erscheint grau. Du selbst stehst mit „(Du)“ in der Liste.
 
 Hinweis: Namen werden hier bewusst nicht angezeigt.`),
   ] },
@@ -184,7 +184,7 @@ Ein Zeitraum darf höchstens so lange dauern, wie in der Konfiguration eingestel
     S('Wer als aktiv gilt', `
 Aktiv ist, wer das Panel mit entsperrtem Bildschirm geöffnet hat oder sich anmeldet. Wer länger als die eingestellte Zahl an Tagen (Standard 7) nicht aktiv war und nicht abgemeldet ist, gilt als **inaktiv**. Auf „Meine Abmeldung“ siehst du deine eigene Aktivität der letzten Tage.`, ['activity.absence']),
     S('Übersicht über alle Mitglieder', `
-Der Reiter **Übersicht** zeigt jedes Mitglied mit Personalnummer, Rang, Status (aktiv, abgemeldet, inaktiv, neu), letztem Besuch, aktiven Tagen in den letzten 14 und 30 Tagen und – falls vorhanden – der Abmeldung samt Grund. Inaktive stehen oben. Die Problemleiste zeigt inaktive Mitglieder gesammelt, und einmal pro Woche kommt eine Benachrichtigung mit den Nummern.`, ['activity.view']),
+Der Reiter **Übersicht** zeigt jedes Mitglied mit Dienstnummer, Rang, Status (aktiv, abgemeldet, inaktiv, neu), letztem Besuch, aktiven Tagen in den letzten 14 und 30 Tagen und – falls vorhanden – der Abmeldung samt Grund. Inaktive stehen oben. Die Problemleiste zeigt inaktive Mitglieder gesammelt, und einmal pro Woche kommt eine Benachrichtigung mit den Nummern.`, ['activity.view']),
     S('Für andere abmelden', `
 Mit dem Recht „Aktivität: Abmeldungen für andere eintragen“ meldest du Mitglieder in der Übersicht ab (**Abmelden** in der Zeile) oder beendest ihre Abmeldung. Das Mitglied wird benachrichtigt.`, ['activity.manage']),
   ] },
@@ -220,7 +220,7 @@ Der Kalender zeigt alle Termine im Monat oder als Agenda (die nächsten 45 Tage)
     S('Auf Termine zu- oder absagen', `
 Bist du bei einem Termin beteiligt, wirst du benachrichtigt und kannst im Termin **Zusagen**, **Vielleicht** oder **Absagen** wählen. Wer den Termin angelegt hat, bekommt deine Antwort mitgeteilt.
 
-Hinweis: Fremde Mitglieder erscheinen überall nur mit Personalnummer, nie mit Namen.`),
+Hinweis: Fremde Mitglieder erscheinen überall nur mit Dienstnummer, nie mit Namen.`),
     S('Erinnerungen', `
 Bei jedem Termin lassen sich bis zu vier Erinnerungen einstellen (zum Termin, 5 Minuten bis 2 Tage vorher). Erinnert werden der Ersteller und alle Beteiligten, die nicht abgesagt haben – als Benachrichtigung. Bei Aufträgen erinnert das Panel kurz vor der Frist und bei Überfälligkeit.`),
     S('Meine Aufträge', `

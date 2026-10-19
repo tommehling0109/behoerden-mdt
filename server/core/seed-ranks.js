@@ -1,44 +1,45 @@
 import { get, run, now } from './db.js';
 
 /**
- * Standard-Ränge der Organisation (aufsteigend). Jeder Rang ist dem nächsthöheren untergeordnet (Hierarchie für die Namensanzeige).
+ * Behörden des Staates (Abteilungen) mit ihren Rängen – aufsteigend, der nächsthöhere Rang ist jeweils der Vorgesetzte.
  * Wird einmalig bei der Einrichtung angelegt (bzw. beim Start, wenn das System noch keine Ränge hat) – danach frei änderbar.
+ * Rangnamen sind systemweit eindeutig, deshalb steht das Kürzel der Behörde dahinter.
  */
-const RANKS = [
-  ['Anwärter', 'Neuling', 'Lernt die internen Abläufe kennen und unterstützt höhergestellte Mitglieder bei einfachen Aufgaben.'],
-  ['Techniker', 'Technik / Versorgung', 'Kümmert sich um Ausrüstung, Fahrzeuge und technische Angelegenheiten.'],
-  ['Beobachter', 'Informationsbeschaffung', 'Sammelt Informationen und meldet Auffälligkeiten an die Führung.'],
-  ['Mitarbeiter', 'Ausführendes Mitglied', 'Übernimmt operative Aufgaben innerhalb der Organisation.'],
-  ['Senior-Mitarbeiter', 'Erfahrenes Mitglied', 'Besonders erfahrenes und vertrauenswürdiges Mitglied. Wird für wichtige Aufgaben eingesetzt.'],
-  ['Teamleiter', 'Unterführer', 'Führt kleinere Gruppen und sorgt dafür, dass Anweisungen der Führung umgesetzt werden.'],
-  ['Abteilungsleiter', 'Abteilungsführung', 'Führt mehrere Mitglieder und koordiniert größere Bereiche der Organisation.'],
-  ['Standortleiter', 'Leiter eines Gebiets', 'Verantwortlich für einen bestimmten Standort oder eine Region und die dortigen Mitglieder.'],
-  ['Bereichsleiter', 'Bereichsführung', 'Koordiniert mehrere Gebiete und deren Führungskräfte.'],
-  ['Rechtsberater', 'Rechtsberatung', 'Rechtlicher Berater der Organisation. Kümmert sich um Verträge, rechtliche Fragen, Verhandlungen und berät die Führung.'],
-  ['Berater der Leitung', 'Oberster Berater', 'Vertrauensperson der Führung. Entwickelt Strategien und berät bei wichtigen Entscheidungen.'],
-  ['Stellvertretende Leitung', 'Stellvertreter', 'Vertritt die Leitung, überwacht die Führungsebene und setzt deren Entscheidungen durch.'],
-  ['Leitung', 'Oberste Leitung', 'Höchste Autorität. Trifft die endgültigen Entscheidungen und steht an der Spitze der gesamten Organisation.'],
+const AGENCIES = [
+  { code: 'LSPD', name: 'Los Santos Police Department', color: '#3b82f6', ranks: ['Police Officer I', 'Police Officer II', 'Police Officer III', 'Senior Lead Officer', 'Sergeant I', 'Sergeant II', 'Lieutenant', 'Captain', 'Commander', 'Deputy Chief', 'Chief of Police'] },
+  { code: 'BCSO', name: "Blaine County Sheriff's Office", color: '#a16207', ranks: ['Deputy Trainee', 'Deputy', 'Senior Deputy', 'Corporal', 'Sergeant', 'Lieutenant', 'Captain', 'Undersheriff', 'Sheriff'] },
+  { code: 'SAHP', name: 'San Andreas Highway Patrol (State Troopers)', color: '#1d4ed8', ranks: ['Probationary Trooper', 'Trooper', 'Senior Trooper', 'Corporal', 'Sergeant', 'Lieutenant', 'Captain', 'Major', 'Colonel', 'Commissioner'] },
+  { code: 'SAPR', name: 'San Andreas Park Rangers', color: '#15803d', ranks: ['Ranger Trainee', 'Park Ranger', 'Senior Ranger', 'Ranger Sergeant', 'Ranger Lieutenant', 'Ranger Captain', 'Chief Ranger'] },
+  { code: 'FIB', name: 'Federal Investigation Bureau', color: '#475569', ranks: ['Probationary Agent', 'Special Agent', 'Senior Special Agent', 'Supervisory Special Agent', 'Assistant Special Agent in Charge', 'Special Agent in Charge', 'Assistant Director', 'Deputy Director', 'Director'] },
+  { code: 'DOJ', name: 'Department of Justice', color: '#7c3aed', ranks: ['Justizangestellter', 'Pflichtverteidiger', 'Assistant District Attorney', 'Deputy District Attorney', 'District Attorney', 'Richter', 'Oberrichter', 'Attorney General'] },
+  { code: 'SAFR', name: 'San Andreas Fire & Rescue', color: '#dc2626', ranks: ['Probationary Firefighter', 'Firefighter', 'Paramedic', 'Engineer', 'Lieutenant', 'Captain', 'Battalion Chief', 'Fire Chief'] },
 ];
-/** Farbverlauf von Grau (unten) über Blau bis Gold (Spitze) */
-const COLORS = ['#94a3b8', '#8da2bd', '#7a9bc4', '#6a93cc', '#5b8def', '#4f7be0', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#f59e0b', '#f97316', '#facc15'];
+/** Verlauf von hell (unterster Rang) zu kräftig (Spitze) innerhalb der Behördenfarbe */
+const shade = (hex, i, n) => {
+  const k = 0.55 + 0.45 * (n <= 1 ? 1 : i / (n - 1));
+  const c = [1, 3, 5].map((o) => Math.round(parseInt(hex.slice(o, o + 2), 16) * k + 255 * (1 - k) * 0.35));
+  return '#' + c.map((x) => Math.min(255, x).toString(16).padStart(2, '0')).join('');
+};
 
 export function seedRanks() {
   if (get("SELECT 1 x FROM sequences WHERE name = 'ranks_seeded'")) return false;
   run("INSERT INTO sequences (name,next_value) VALUES ('ranks_seeded',1)");
   if (get('SELECT 1 x FROM ranks LIMIT 1')) return false; // es gibt schon eigene Ränge – nichts überschreiben
-  const ids = [];
-  RANKS.forEach(([name, title, text], i) => {
-    const res = run('INSERT INTO ranks (name,description,color,sort_order,parent_rank_id,created_at) VALUES (?,?,?,?,NULL,?)', name, `${title} – ${text}`, COLORS[i], i + 1, now());
-    ids.push(Number(res.lastInsertRowid));
-  });
-  seedRoles(RANKS.map(([name, title], i) => ({ name, desc: title, color: COLORS[i] })));
-  ids.forEach((id, i) => { if (i < ids.length - 1) run('UPDATE ranks SET parent_rank_id = ? WHERE id = ?', ids[i + 1], id); }); // Vorgesetzter Rang = nächsthöherer
+  let deptSort = 0, rankSort = 0;
+  for (const a of AGENCIES) {
+    const ex = get('SELECT id FROM departments WHERE name = ? COLLATE NOCASE', a.name);
+    const deptId = ex?.id ?? Number(run('INSERT INTO departments (name,description,color,sort_order,created_at) VALUES (?,?,?,?,?)', a.name, `Behörde ${a.code}`, a.color, ++deptSort, now()).lastInsertRowid);
+    const ids = a.ranks.map((r, i) => Number(run('INSERT INTO ranks (name,description,color,sort_order,department_id,parent_rank_id,created_at) VALUES (?,?,?,?,?,NULL,?)',
+      `${r} (${a.code})`, `${a.code} – Rang ${i + 1} von ${a.ranks.length}`, shade(a.color, i, a.ranks.length), ++rankSort, deptId, now()).lastInsertRowid));
+    ids.forEach((id, i) => { if (i < ids.length - 1) run('UPDATE ranks SET parent_rank_id = ? WHERE id = ?', ids[i + 1], id); }); // Vorgesetzter Rang = nächsthöherer
+  }
+  seedRoles();
   return true;
 }
 
 /**
- * Rollen passend zu den Rängen: pro Rang eine Rolle mit aufsteigenden Rechten (jede Stufe enthält alle Rechte der Stufen darunter).
- * Die oberste Stufe ist Administrator-Rolle (alle Rechte). Zusätzlich gibt es die frei vergebbare Rolle „Administrator“.
+ * Rollen nach Verantwortung (unabhängig von der Behörde): jede Stufe enthält alle Rechte der Stufen darunter.
+ * Der Rang bildet die Hierarchie ab, die Rolle steuert die Rechte. Zusätzlich gibt es die frei vergebbare Rolle „Administrator“.
  * Der Superadmin braucht keine Rolle – er hat immer alles.
  */
 const LEVELS = [
@@ -50,26 +51,32 @@ const LEVELS = [
   ['users.view', 'tab.view', 'credit.view', 'stats.view', 'schedule.tasks.assign'],
   ['users.approve', 'schedule.manage', 'activity.view', 'onboarding.check', 'chat.moderate', 'market.catalog.manage', 'finance.view', 'vehicles.delete'],
   ['warehouse.manage', 'warehouse.prices', 'tab.statements', 'credit.manage', 'lookups.view'],
-  ['partners.manage', 'activity.manage', 'onboarding.manage', 'users.create', 'users.edit', 'credit.payments', 'chat.partners', 'chat.manage', 'tickets.manage', 'board.manage', 'contacts.delete', 'contacts.bank', 'legal.cases.edit', 'legal.cases.billing'],
+  ['partners.manage', 'activity.manage', 'onboarding.manage', 'users.create', 'users.edit', 'users.badge', 'credit.payments', 'chat.partners', 'chat.manage', 'tickets.manage', 'board.manage', 'contacts.delete', 'contacts.bank', 'legal.cases.edit', 'legal.cases.billing'],
   ['partners.documents', 'users.watchlist', 'tab.manage_companies', 'credit.limits', 'finance.manual', 'finance.export', 'audit.view', 'roles.view', 'lookups.manage'],
   ['users.personnel_view', 'users.personnel_edit', 'users.avatar_edit', 'users.avatar_remove', 'audit.export', 'org.manage', 'admin.access', 'config.view', 'changelog.manage', 'help.manage', 'contacts.secret', 'legal.manage', 'legal.cases.confidential', 'legal.cases.delete'],
   ['users.password_reset', 'partners.levels', 'roles.manage', 'system.backup', 'system.apps', 'config.edit', 'market.delete', 'credit.delete', 'tab.delete', 'partners.delete', 'finance.delete', 'tickets.delete', 'users.delete'],
   [], // Stufe 13: Administrator-Rolle (alle Rechte)
 ];
 
-export function seedRoles(rankNames) {
+const ROLES = [
+  { name: 'Beamter', desc: 'Grundrechte für den täglichen Dienst', color: '#60a5fa', upto: 2 },
+  { name: 'Dienstgruppenleiter', desc: 'Führt eine Schicht oder Streife, vergibt Aufträge', color: '#34d399', upto: 5 },
+  { name: 'Dienststellenleitung', desc: 'Personal, Einarbeitung und Verwaltung einer Dienststelle', color: '#f59e0b', upto: 8 },
+  { name: 'Behördenleitung', desc: 'Leitung einer Behörde mit erweiterten Verwaltungsrechten', color: '#f97316', upto: 10 },
+  { name: 'Personalabteilung', desc: 'Dienstnummern, Freischaltung und Personalakten', color: '#a78bfa', extra: ['users.view', 'users.create', 'users.edit', 'users.approve', 'users.badge', 'users.personnel_view', 'users.personnel_edit', 'org.view', 'onboarding.check', 'onboarding.manage'] },
+];
+
+export function seedRoles() {
   const t = now();
   const mk = (name, desc, color, admin, sort) => {
     const ex = get('SELECT id FROM roles WHERE name = ? COLLATE NOCASE', name);
     if (ex) return ex.id;
     return Number(run('INSERT INTO roles (name,description,color,is_admin,is_system,sort_order,created_at) VALUES (?,?,?,?,?,?,?)', name, desc, color, admin ? 1 : 0, admin ? 1 : 0, sort, t).lastInsertRowid);
   };
-  mk('Administrator', 'Voller Zugriff auf alle Funktionen. Frei vergebbar (der Superadmin braucht sie nicht).', '#f59e0b', true, 0);
-  const have = new Set();
-  rankNames.forEach(({ name, desc, color }, i) => {
-    for (const k of LEVELS[i] ?? []) have.add(k);
-    const admin = i === rankNames.length - 1;
-    const id = mk(name, `Rolle zum Rang „${name}“ (${desc}) – Rechte wachsen mit dem Rang.`, color, admin, i + 1);
-    if (!admin) for (const k of have) if (get('SELECT 1 x FROM permissions WHERE key = ?', k)) run('INSERT OR IGNORE INTO role_permissions (role_id,permission_key) VALUES (?,?)', id, k);
+  mk('Administrator', 'Voller Zugriff auf alle Funktionen. Frei vergebbar (der Superadmin braucht sie nicht).', '#ef4444', true, 0);
+  const grant = (id, keys) => { for (const k of keys) if (get('SELECT 1 x FROM permissions WHERE key = ?', k)) run('INSERT OR IGNORE INTO role_permissions (role_id,permission_key) VALUES (?,?)', id, k); };
+  ROLES.forEach((r, i) => {
+    const id = mk(r.name, r.desc, r.color, false, i + 1);
+    grant(id, r.extra ?? LEVELS.slice(0, r.upto + 1).flat());
   });
 }

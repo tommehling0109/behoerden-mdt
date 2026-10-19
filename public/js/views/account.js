@@ -30,7 +30,7 @@ export function openAccountDialog() {
     const draw = () => mount(preview, h('div', { class: 'avatar-edit' }, userAvatar(state.user, 'lg', state.user.memberNumber ?? state.user.displayName),
       h('div', null, h('div', { class: 'row' }, file, button('Bild auswählen', { variant: 'primary', icon: 'download', onClick: () => file.click() }),
         state.user.avatarUrl && button('Entfernen', { variant: 'danger', icon: 'trash', onClick: async () => { try { await api.del('/api/account/avatar'); state.user.avatarUrl = null; toast('Profilbild entfernt.'); draw(); } catch (e) { toast(e.message, 'err'); } } })),
-      h('div', { class: 'help', style: { marginTop: '8px' } }, 'PNG, JPEG oder WebP. Das Bild wird quadratisch zugeschnitten. Andere sehen es neben deiner Personalnummer – nie mit deinem Namen.'))));
+      h('div', { class: 'help', style: { marginTop: '8px' } }, 'PNG, JPEG oder WebP. Das Bild wird quadratisch zugeschnitten. Andere sehen es neben deiner Dienstnummer – nie mit deinem Namen.'))));
     file.addEventListener('change', async () => {
       const f = file.files[0]; if (!f) return;
       try { const data = await prepareAvatar(f); const { avatarUrl } = await api.post('/api/account/avatar', { data }); state.user.avatarUrl = avatarUrl; toast('Profilbild gespeichert.'); draw(); }

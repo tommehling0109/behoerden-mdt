@@ -40,7 +40,7 @@ export function watchLoginNotice(userId, { blocked = false } = {}) {
   const w = get('SELECT * FROM user_watch WHERE user_id = ?', userId); if (!w) return;
   const k = `${userId}:${blocked ? 'b' : 'l'}`, t = Date.now(); if (t - (lastNote.get(k) ?? 0) < 30 * 60_000) return; lastNote.set(k, t);
   const ids = observersOf(userId).filter((id) => id !== userId); if (!ids.length) return;
-  const nr = userRow(userId)?.member_number ?? `Mitglied #${userId}`;
+  const nr = memberLabel(userRow(userId) ?? { id: userId });
   notify(ids.map((id) => ({ type: 'user', id })), { key: `watch:${userId}:${blocked ? 'blocked' : 'login'}:${now()}`, title: blocked ? `Watchlist: ${nr} versucht sich anzumelden` : `Watchlist: ${nr} hat sich angemeldet`, body: w.reason.slice(0, 120), target: { app: 'users', watch: true } });
 }
 
@@ -84,16 +84,16 @@ export default {
           added = want.filter((id) => !have.has(id)); for (const id of added) run('INSERT INTO user_watch_observers (user_id,observer_id) VALUES (?,?)', w.user_id, id);
         }
         run('UPDATE user_watch SET updated_at = ? WHERE user_id = ?', t, w.user_id);
-        audit(ctx, { action: 'watchlist.updated', module: 'users', targetType: 'user', targetId: w.user_id, targetLabel: userRow(w.user_id)?.member_number ?? `Mitglied #${w.user_id}` });
+        audit(ctx, { action: 'watchlist.updated', module: 'users', targetType: 'user', targetId: w.user_id, targetLabel: memberLabel(userRow(w.user_id) ?? { id: w.user_id }) });
       });
-      const nr = userRow(w.user_id)?.member_number ?? `Mitglied #${w.user_id}`;
+      const nr = memberLabel(userRow(w.user_id) ?? { id: w.user_id });
       notify(added.filter((id) => id !== ctx.user.id).map((id) => ({ type: 'user', id })), { key: `watch:${w.user_id}:assign:${t}`, title: `Du beobachtest jetzt ${nr}`, body: get('SELECT reason FROM user_watch WHERE user_id = ?', w.user_id).reason.slice(0, 120), target: { app: 'users', watch: true } });
       return { entry: dto(get('SELECT * FROM user_watch WHERE user_id = ?', w.user_id), ctx.user) };
     });
     r.delete('/api/watchlist/:id', { perm: 'users.edit' }, (ctx) => {
       const w = load(ctx); if (!has(ctx.user, 'users.edit')) throw forbidden();
       run('DELETE FROM user_watch WHERE user_id = ?', w.user_id);
-      audit(ctx, { action: 'watchlist.removed', module: 'users', targetType: 'user', targetId: w.user_id, targetLabel: userRow(w.user_id)?.member_number ?? `Mitglied #${w.user_id}` });
+      audit(ctx, { action: 'watchlist.removed', module: 'users', targetType: 'user', targetId: w.user_id, targetLabel: memberLabel(userRow(w.user_id) ?? { id: w.user_id }) });
       return { ok: true };
     });
   },

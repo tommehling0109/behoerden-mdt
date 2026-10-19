@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 /**
  * Personalakte: persönliche Angaben und Dokumente (Ausweis, Führerschein, Waffenschein, Führungszeugnis) der Mitglieder.
  * Sichtbar nur für das Mitglied selbst und für Berechtigte (users.personnel_view); ändern/hochladen mit users.personnel_edit.
- * Die Angaben tauchen nirgends sonst auf – die Anonymität (nur Personalnummer) bleibt bestehen.
+ * Die Angaben tauchen nirgends sonst auf – die Anonymität (nur Dienstnummer) bleibt bestehen.
  */
 const docDir = () => join(dirname(DB_PATH), 'user-docs');
 const docFile = (id, kind, ext) => join(docDir(), `${id}-${kind}.${ext}`);

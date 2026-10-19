@@ -10,7 +10,7 @@ export function audit(ctx, { action, module, targetType, targetId, targetLabel, 
   run(
     `INSERT INTO audit_log (ts,user_id,username,action,module,target_type,target_id,target_label,before_value,after_value,ip)
      VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    now(), ctx?.user?.id ?? null, ctx?.actorName ?? null, action, module, // Namen werden nie gespeichert – nur user_id (Anzeige: Personalnummer)
+    now(), ctx?.user?.id ?? null, ctx?.actorName ?? null, action, module, // Namen werden nie gespeichert – nur user_id (Anzeige: Dienstnummer)
     targetType ?? null, targetId != null ? String(targetId) : null, targetLabel ?? null,
     json(before), json(after), ctx?.ip ?? null,
   );
@@ -23,19 +23,19 @@ export function queryAudit({ limit = 50, offset = 0, module, q, action, user, fr
   const p = [];
   if (module) { where.push('a.module = ?'); p.push(module); }
   if (action) { where.push('a.action = ?'); p.push(action); }
-  if (user) { where.push('(u.member_number LIKE ? OR a.username LIKE ?)'); p.push(`%${user}%`, `%${user}%`); }
+  if (user) { where.push('(u.member_number LIKE ? OR u.display_name LIKE ? OR a.username LIKE ?)'); p.push(`%${user}%`, `%${user}%`, `%${user}%`); }
   if (from) { where.push('a.ts >= ?'); p.push(new Date(`${from}T00:00:00`).toISOString()); }
   if (to) { where.push('a.ts <= ?'); p.push(new Date(`${to}T23:59:59.999`).toISOString()); }
   if (q) {
-    where.push("(u.member_number LIKE ? OR a.action LIKE ? OR (a.target_type != 'user' AND a.target_label LIKE ?))");
-    p.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    where.push("(u.member_number LIKE ? OR u.display_name LIKE ? OR a.action LIKE ? OR (a.target_type != 'user' AND a.target_label LIKE ?))");
+    p.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
   }
   const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const JOIN = 'FROM audit_log a LEFT JOIN users u ON u.id = a.user_id';
   const total = get(`SELECT COUNT(*) c ${JOIN} ${w}`, ...p).c;
-  const rows = all(`SELECT a.*, u.member_number actor_number, u.status actor_status, u.id actor_uid ${JOIN} ${w} ORDER BY a.id DESC LIMIT ? OFFSET ?`, ...p, limit, offset).map((r) => {
-    // Anonymität: Handelnde und betroffene Mitglieder erscheinen nur als Personalnummer (man selbst als „Du“)
-    const actor = r.user_id != null ? (r.user_id === viewerId ? 'Du' : r.actor_uid ? memberLabel({ id: r.actor_uid, member_number: r.actor_number, status: r.actor_status }) : 'Gelöschtes Mitglied')
+  const rows = all(`SELECT a.*, u.member_number actor_number, u.display_name actor_name, u.status actor_status, u.id actor_uid ${JOIN} ${w} ORDER BY a.id DESC LIMIT ? OFFSET ?`, ...p, limit, offset).map((r) => {
+    // Anonymität: Handelnde und betroffene Mitglieder erscheinen nur als Dienstnummer (man selbst als „Du“)
+    const actor = r.user_id != null ? (r.user_id === viewerId ? 'Du' : r.actor_uid ? memberLabel({ id: r.actor_uid, member_number: r.actor_number, display_name: r.actor_name, status: r.actor_status }) : 'Gelöschtes Mitglied')
       : r.action === 'auth.login_failed' ? 'Unbekannt' : (r.username ?? null);
     const targetLabel = r.target_type === 'user' ? (r.target_id ? labelForUserRow(r.target_id, viewerId) : null) : r.target_label;
     return {

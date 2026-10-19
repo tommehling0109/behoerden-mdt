@@ -11,7 +11,7 @@ import { registerWidget } from './dashboard.js';
  * Termine & Aufträge: ein gemeinsamer Kalender (Termine mit Art, Ort, Beteiligten, Zu-/Absage und Erinnerungen) und Aufträge, die an Mitglieder verteilt
  * werden (Frist, Priorität, Status je Beauftragtem, optional einem Termin zugeordnet). Erinnerungen laufen serverseitig (Benachrichtigung).
  * Rechte: schedule.view (Kalender + eigene Aufträge) · schedule.create (Termine anlegen) · schedule.tasks.assign (Aufträge vergeben) · schedule.manage (alles sehen/ändern).
- * Namen anderer Mitglieder erscheinen nie – nur Personalnummern.
+ * Namen anderer Mitglieder erscheinen nie – nur Dienstnummern.
  */
 const has = (u, p) => u.isAdmin || u.perms.has(p);
 const KINDS = [['meeting', 'Besprechung', '#5b8def'], ['handover', 'Übergabe / Treffen', '#f59e0b'], ['mission', 'Einsatz / Aktion', '#ef4444'], ['delivery', 'Lieferung / Abholung', '#22c55e'],
@@ -166,7 +166,7 @@ export function overdueTaskProblems(user) {
     const [warn, crit0] = lim[['high', 'urgent'].includes(tk.priority) ? 'important' : 'normal'], crit = Math.max(warn, crit0), hours = (t - Date.parse(tk.due_at)) / 3600_000;
     if (hours < warn) continue;
     const open = all("SELECT user_id FROM cal_task_assignees WHERE task_id = ? AND state IN ('open','accepted')", tk.id).map((a) => ({ id: a.user_id, member_number: userRow(a.user_id)?.member_number }));
-    const critical = hours >= crit, who = open.length ? open.map((a) => (a.id === user.id ? 'Du' : a.member_number ?? `Mitglied #${a.id}`)).join(', ') : '–';
+    const critical = hours >= crit, who = open.length ? open.map((a) => (a.id === user.id ? 'Du' : memberLabel({ id: a.id, member_number: a.member_number }))).join(', ') : '–';
     out.push({ id: `task:${tk.id}:over:${critical ? 'crit' : 'warn'}`, severity: critical ? 'critical' : 'warn', title: `${taskNo(tk.id)} · Auftrag überfällig: ${tk.title}`,
       detail: `${PRIORITIES[tk.priority]} · fällig war ${when(tk.due_at, false)} · offen bei ${who}`, since: tk.due_at, target: { app: 'schedule', taskId: tk.id } });
   }
